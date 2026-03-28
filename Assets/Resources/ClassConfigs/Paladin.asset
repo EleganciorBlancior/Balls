@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b9f6da1051a064fe98d8ac996acca02f, type: 3}
+  m_Name: Paladin
+  m_EditorClassIdentifier: Assembly-CSharp::ClassConfig
+  ballClass: 4
+  className: Paladyn
+  color: {r: 0.25, g: 0.78, b: 0.91, a: 1}
+  color2: {r: 1, g: 1, b: 1, a: 1}
+  color3: {r: 1, g: 1, b: 1, a: 1}
+  pattern: 0
+  stripeCount: 5
+  maxHP: 180
+  radius: 0.55
+  moveSpeed: 2
+  attackRange: 1.4
+  attackCooldown: 2.8
+  collisionDamage: 12
+  ballSprite: {fileID: 0}

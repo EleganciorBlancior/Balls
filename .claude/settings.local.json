@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -lh /home/pawelb/ProjektyUnity/balls/Assets/Scripts/*.cs)",
+      "Read(//home/pawelb/ProjektyUnity/balls/**)",
+      "Bash(xargs -I {} basename {})"
+    ]
+  }
+}
