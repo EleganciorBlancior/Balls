@@ -387,8 +387,8 @@ public class PaintShopUI : MonoBehaviour
     }
 
     // ── Nawigacja ─────────────────────────────────────────────────────────
-    public void GoToShop()     => SceneManager.LoadScene("ShopScene");
-    public void GoToMainMenu() => SceneManager.LoadScene("MainMenu");
+    public void GoToShop()     => SceneTransition.ExitTo("ShopScene");
+    public void GoToMainMenu() => SceneTransition.ExitTo("MainMenu");
 
     // ── Helpers ───────────────────────────────────────────────────────────
     ClassConfig GetCfg(BallClass cls)

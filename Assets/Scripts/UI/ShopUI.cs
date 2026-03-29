@@ -25,6 +25,7 @@
 // Do prefabu listRowPrefab podepnij ShopListRow.
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using TMPro;
@@ -74,6 +75,13 @@ public class ShopUI : MonoBehaviour
     private ClassConfig  _selCfg;
     private int          _selTierIdx;
 
+    // Hold-to-buy
+    const float HOLD_INITIAL_DELAY = 0.5f;
+    const float HOLD_INTERVAL      = 0.15f;
+    private bool  _actionHeld;
+    private float _holdTimer;
+    private bool  _holdFired;
+
     // ── Unity lifecycle ───────────────────────────────────────────────────
     private void Start()
     {
@@ -81,14 +89,29 @@ public class ShopUI : MonoBehaviour
         {
             var go = new GameObject("GameData"); go.AddComponent<GameData>();
         }
-        if (GameData.Instance.gold == 0)
-            GameData.Instance.gold = 10000;
 
         RefreshTopBar();
         BuildLists();
         ShowEmpty();
         if (ballsToggleLabel    != null) ballsToggleLabel.text    = "Kulki ▼";
         if (upgradesToggleLabel != null) upgradesToggleLabel.text = "Ulepszenia ▼";
+
+        SetupHoldToBuy();
+    }
+
+    void SetupHoldToBuy()
+    {
+        if (actionButton == null) return;
+        var trigger = actionButton.gameObject.GetComponent<EventTrigger>()
+                   ?? actionButton.gameObject.AddComponent<EventTrigger>();
+
+        var down = new EventTrigger.Entry { eventID = EventTriggerType.PointerDown };
+        down.callback.AddListener(_ => { _actionHeld = true; _holdTimer = 0f; _holdFired = false; });
+        trigger.triggers.Add(down);
+
+        var up = new EventTrigger.Entry { eventID = EventTriggerType.PointerUp };
+        up.callback.AddListener(_ => { _actionHeld = false; _holdTimer = 0f; _holdFired = false; });
+        trigger.triggers.Add(up);
     }
 
     private void Update()
@@ -99,6 +122,31 @@ public class ShopUI : MonoBehaviour
             titleRect.anchoredPosition = new Vector2(
                 titleRect.anchoredPosition.x,
                 Mathf.Sin(_bobTimer * 1.5f) * 16f - 55f);
+        }
+
+        // Fallback: jeśli przycisk myszy zwolniony (np. gdy ActionButton był nieaktywny i PointerUp nie odpalił)
+        if (_actionHeld && UnityEngine.InputSystem.Mouse.current != null
+            && UnityEngine.InputSystem.Mouse.current.leftButton.wasReleasedThisFrame)
+        {
+            _actionHeld = false;
+            _holdTimer  = 0f;
+            _holdFired  = false;
+        }
+
+        if (_actionHeld && actionButton != null && actionButton.interactable && _selType != SelType.None)
+        {
+            _holdTimer += Time.deltaTime;
+            if (!_holdFired && _holdTimer >= HOLD_INITIAL_DELAY)
+            {
+                _holdFired = true;
+                _holdTimer = 0f;
+                OnActionClicked();
+            }
+            else if (_holdFired && _holdTimer >= HOLD_INTERVAL)
+            {
+                _holdTimer = 0f;
+                OnActionClicked();
+            }
         }
     }
 
@@ -167,6 +215,7 @@ public class ShopUI : MonoBehaviour
         var go  = Instantiate(listRowPrefab, parent);
         var row = go.GetComponent<ShopListRow>();
         if (row != null) row.Init(detailView);
+        if (row?.btn != null) UIAudioHook.HookButton(row.btn);
         return row;
     }
 
@@ -253,6 +302,10 @@ public class ShopUI : MonoBehaviour
     {
         if (emptyHint  != null) emptyHint.SetActive(true);
         if (detailView != null) detailView.SetActive(false);
+        _selType   = SelType.None;
+        _actionHeld = false;
+        _holdTimer  = 0f;
+        _holdFired  = false;
     }
 
     // ── Akcja przycisku ───────────────────────────────────────────────────
@@ -277,6 +330,7 @@ public class ShopUI : MonoBehaviour
 
         GameData.Instance.gold -= price;
         GameData.Instance.purchasedBalls.Add(_selCfg.ballClass);
+        AudioController.Instance?.PlayShopBuy();
         ShowMsg("Kupiono " + _selCfg.className + "!");
         RefreshTopBar(); BuildLists();
         SelectBall(_selCfg); // odśwież panel
@@ -288,6 +342,7 @@ public class ShopUI : MonoBehaviour
         if (GameData.Instance.gold < tier.upgradeCost) { ShowMsg("Za mało złota!"); return; }
         GameData.Instance.gold -= tier.upgradeCost;
         GameData.Instance.arenaTierIndex++;
+        AudioController.Instance?.PlayShopBuy();
         ShowMsg("Arena ulepszona!");
         RefreshTopBar();
         BuildUpgradesList();
@@ -362,7 +417,7 @@ public class ShopUI : MonoBehaviour
         TryBuyArena();
     }
 
-    public void OnStartGameClicked() => SceneManager.LoadScene("GameScene");
-    public void OnMergeClicked()     => SceneManager.LoadScene("MergeScene");
-    public void OnBackClicked()      => SceneManager.LoadScene("MainMenu");
+    public void OnStartGameClicked() => SceneTransition.ExitTo("GameScene");
+    public void OnMergeClicked()     => SceneTransition.ExitTo("MergeScene");
+    public void OnBackClicked()      => SceneTransition.ExitTo("MainMenu");
 }

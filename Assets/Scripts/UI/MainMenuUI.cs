@@ -53,7 +53,7 @@ public class MainMenuUI : MonoBehaviour
 
     public void OnPlayClicked()
     {
-        SceneManager.LoadScene("ShopScene");
+        SceneTransition.ExitTo("ShopScene");
     }
 
     public void OnQuitClicked()
@@ -70,7 +70,7 @@ public class MainMenuUI : MonoBehaviour
 
         if (GameData.Instance.paintShopUnlocked)
         {
-            SceneManager.LoadScene("PaintScene");
+            SceneTransition.ExitTo("PaintScene");
             return;
         }
 
@@ -79,6 +79,6 @@ public class MainMenuUI : MonoBehaviour
         GameData.Instance.gold -= GameData.PAINT_SHOP_COST;
         GameData.Instance.paintShopUnlocked = true;
         RefreshPaintButton();
-        SceneManager.LoadScene("PaintScene");
+        SceneTransition.ExitTo("PaintScene");
     }
 }

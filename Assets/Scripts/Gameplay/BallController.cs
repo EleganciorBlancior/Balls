@@ -42,9 +42,18 @@ public class BallController : MonoBehaviour
     public float SpeedMultiplier   { get; set; } = 1f;
     public int   BallNumber        { get; set; }
     public Color BaseColor         => baseColor;
+    public float EffectiveSpeed    => Config.moveSpeed * SpeedMultiplier * (slownessLeft > 0f ? slownessSpeedMult : 1f);
 
     private float          _psychicRepelTimer;
     private BallController _psychicRepelSource;
+
+    // Spowolnienie (Druid)
+    private float          slownessSpeedMult = 1f;
+    private float          slownessLeft      = 0f;
+    private float          rangeReductMult   = 1f;
+    private float          rangeReductLeft   = 0f;
+    private BallController tauntTarget;
+    private float          tauntLeft         = 0f;
 
     private void Awake()
     {
@@ -178,7 +187,7 @@ public class BallController : MonoBehaviour
     private void Update()
     {
         if (!IsAlive) return;
-        HandlePoison(); HandleWeaken(); HandleFlash(); HandleGlow();
+        HandlePoison(); HandleWeaken(); HandleSlowness(); HandleFlash(); HandleGlow();
         HandleAI(); ClampSpeed();
         if (_psychicRepelTimer > 0f) _psychicRepelTimer -= Time.deltaTime;
         if (healthBar != null) healthBar.UpdateBar(currentHP, transform.position);
@@ -186,11 +195,31 @@ public class BallController : MonoBehaviour
 
     void HandleAI()
     {
-        var target = FindNearest();
+        if (tauntLeft > 0f) tauntLeft -= Time.deltaTime;
+        BallController target = tauntLeft > 0f && tauntTarget != null && tauntTarget.IsAlive
+            ? tauntTarget : FindNearest();
         if (target == null) return;
-        if (Vector2.Distance(transform.position, target.transform.position) <= ScaledAttackRange
-            && weapon.IsReady)
+        float effectiveRange = ScaledAttackRange;
+        if (rangeReductLeft > 0f && IsRangedClass())
+            effectiveRange *= rangeReductMult;
+        if (Vector2.Distance(transform.position, target.transform.position) <= effectiveRange && weapon.IsReady)
             weapon.Attack(target);
+    }
+
+    bool IsRangedClass()
+    {
+        switch (Config.ballClass)
+        {
+            case BallClass.Mage:
+            case BallClass.Archer:
+            case BallClass.Elementalist:
+            case BallClass.Priest:
+            case BallClass.Technician:
+            case BallClass.Nerd:
+            case BallClass.Mariachi:
+                return true;
+            default: return false;
+        }
     }
 
     BallController FindNearest()
@@ -208,7 +237,7 @@ public class BallController : MonoBehaviour
 
     void ClampSpeed()
     {
-        float speed = Config.moveSpeed * SpeedMultiplier;
+        float speed = EffectiveSpeed;
         if (Rb.linearVelocity.magnitude < speed * 0.3f)
             Rb.linearVelocity = Rb.linearVelocity.normalized * speed;
     }
@@ -267,6 +296,17 @@ public class BallController : MonoBehaviour
 
     public float ApplyOutgoingWeaken(float dmg) => dmg * weakenMult;
 
+    public void ApplySlowness(float speedMult, float rangeReduction, float duration, BallController taunter)
+    {
+        if (invincible) return;
+        slownessSpeedMult = Mathf.Min(slownessSpeedMult, speedMult);
+        slownessLeft      = Mathf.Max(slownessLeft, duration);
+        rangeReductMult   = Mathf.Min(rangeReductMult, 1f - rangeReduction);
+        rangeReductLeft   = Mathf.Max(rangeReductLeft, duration);
+        tauntTarget       = taunter;
+        tauntLeft         = Mathf.Max(tauntLeft, duration);
+    }
+
     void HandlePoison()
     {
         if (poisonLeft <= 0f) return;
@@ -281,6 +321,14 @@ public class BallController : MonoBehaviour
         if (weakenLeft <= 0f) { weakenMult = 1f; return; }
         weakenLeft -= Time.deltaTime;
         sr.color = Color.Lerp(sr.color, new Color(0.8f, 0.5f, 1f), 0.1f);
+    }
+
+    void HandleSlowness()
+    {
+        if (slownessLeft <= 0f) { slownessSpeedMult = 1f; rangeReductMult = 1f; return; }
+        slownessLeft    -= Time.deltaTime;
+        rangeReductLeft  = Mathf.Max(rangeReductLeft - Time.deltaTime, 0f);
+        sr.color = Color.Lerp(sr.color, new Color(0.2f, 0.8f, 0.6f), 0.12f);
     }
 
     void HandleGlow()
@@ -375,6 +423,7 @@ public class BallController : MonoBehaviour
 
         var other = col.gameObject.GetComponent<BallController>();
         if (other == null || !other.IsAlive) return;
+        AudioController.Instance?.PlayBallCollision();
         FlashColor(Color.white, 0.05f);
         float dmg = Config.collisionDamage * weakenMult * (weapon != null ? weapon.StatMultiplier : 1f);
         other.TakePhysicalDamage(dmg, this);

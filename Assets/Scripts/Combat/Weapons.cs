@@ -18,13 +18,26 @@ public class SwordWeapon : WeaponBase
     protected override void Update()
     {
         base.Update();
-        if (!charging) return;
-        chargeTimer -= Time.deltaTime;
-        if (chargeTimer <= 0f)
+        if (charging)
         {
-            charging = false;
-            owner.Rb.linearVelocity = owner.Rb.linearVelocity.normalized * owner.Config.moveSpeed;
+            chargeTimer -= Time.deltaTime;
+            if (chargeTimer <= 0f) charging = false;
+            return;
         }
+        // Update odpala po callbackach fizyki (OnCollisionEnter2D, OnTriggerEnter2D)
+        // – koryguje prędkość na tej samej klatce co obrażenia/kolizja
+        EnforceSpeed();
+    }
+
+    private void FixedUpdate()
+    {
+        if (!charging) EnforceSpeed();
+    }
+
+    void EnforceSpeed()
+    {
+        if (owner == null || owner.Rb.linearVelocity.magnitude < 0.1f) return;
+        owner.Rb.linearVelocity = owner.Rb.linearVelocity.normalized * owner.EffectiveSpeed;
     }
 
     public override void Attack(BallController target)
@@ -34,6 +47,7 @@ public class SwordWeapon : WeaponBase
         owner.Rb.linearVelocity = dir * owner.Config.moveSpeed * CHARGE_MULT;
         charging = true; chargeTimer = CHARGE_DURATION;
         owner.FlashColor(Color.white, 0.15f);
+        AudioController.Instance?.PlayMeleeHit();
         StartCooldown();
     }
 
@@ -63,6 +77,7 @@ public class FireballWeapon : WeaponBase
         var go   = BallArenaUtils.CreateBulletGO(owner.transform.position, new Color(1f, 0.4f, 0.1f), 0.22f);
         var proj = go.AddComponent<Projectile>();
         proj.Initialize(owner, target, dir * SPEED, DMG, ProjectileType.Fireball, 4f, 6f);
+        AudioController.Instance?.PlayProjectileFire();
         StartCooldown();
     }
 }
@@ -101,6 +116,7 @@ public class ArrowWeapon : WeaponBase
         var go = BallArenaUtils.CreateBulletGO(owner.transform.position + (Vector3)(dir * 0.6f),
                      new Color(0.3f, 1f, 0.3f), 0.14f);
         go.AddComponent<Projectile>().Initialize(owner, target, dir * SPEED, DMG, ProjectileType.Arrow, 0f, 3f);
+        AudioController.Instance?.PlayProjectileFire();
     }
 }
 
@@ -116,7 +132,7 @@ public class PoisonWeapon : WeaponBase
     public bool IsInvincible => IsReady;
 
     public override void Initialize(BallController ownerBall)
-    { base.Initialize(ownerBall); Cooldown = 3.5f; }
+    { base.Initialize(ownerBall); Cooldown = 3.5f; owner.ScaledAttackRange = Mathf.Max(owner.ScaledAttackRange * 0.9f, 2.75f); }
 
     protected override void Update()
     {
@@ -130,14 +146,35 @@ public class PoisonWeapon : WeaponBase
     public override void Attack(BallController target)
     {
         if (!IsReady) return;
-        Vector3 dir = (target.transform.position - owner.transform.position).normalized;
+        Vector3 fromPos = owner.transform.position;
+        Vector3 dir     = (target.transform.position - fromPos).normalized;
+
+        AudioController.Instance?.PlayRogueTeleport();
+        SpawnShadowGhost(fromPos);
+
         owner.transform.position = target.transform.position
             - dir * (target.Config.radius + owner.Config.radius + 0.1f);
 
         target.TakeDamage(STAB_DMG, owner);
         target.ApplyPoison(POISON_DPS * 2f, POISON_DURATION, owner);
         owner.FlashColor(new Color(0.5f, 1f, 0.2f), 0.2f);
+        AudioController.Instance?.PlayMeleeHit();
         StartCooldown();
+    }
+
+    void SpawnShadowGhost(Vector3 pos)
+    {
+        var go = new GameObject("RogueShadow");
+        go.transform.position   = pos;
+        go.transform.localScale = owner.transform.localScale * 1.1f;
+
+        var sr          = go.AddComponent<SpriteRenderer>();
+        sr.sprite       = BallArenaUtils.CircleSprite;
+        sr.color        = new Color(0.05f, 0.05f, 0.15f, 0.65f);
+        sr.sortingOrder = owner.GetComponent<SpriteRenderer>().sortingOrder - 1;
+
+        // Fader działa na własnym GO – niezależny od życia kulki
+        go.AddComponent<ShadowFader>().Init(0.18f);
     }
 
     public void OnBallCollision(BallController other)
@@ -166,6 +203,7 @@ public class ShieldWeapon : WeaponBase
         owner.Heal(HEAL);
         owner.FlashColor(new Color(0.5f, 0.9f, 1f), 0.25f);
         owner.PunchScale(1.3f, 0.2f);
+        AudioController.Instance?.PlayMeleeHit();
         StartCooldown();
     }
 
@@ -199,6 +237,7 @@ public class BerserkWeapon : WeaponBase
         float dmg    = BASE_DMG * (1f + rage * 2f);
         target.TakeDamage(dmg, owner);
         owner.FlashColor(new Color(1f, 0.2f, 0.0f), 0.1f);
+        AudioController.Instance?.PlayMeleeHit();
         StartCooldown();
     }
 
@@ -219,6 +258,14 @@ public class NecroWeapon : WeaponBase
     const float PULSE_DMG    = 15f;
     const float PULSE_RADIUS = 4f;
     const float LIFESTEAL    = 0.4f;
+    const float MINION_DMG   = 20f;
+    const int   MAX_MINIONS  = 3;
+
+    private static readonly Color NECRO_BODY = new Color(0.25f, 0f, 0.35f, 1f);
+    private static readonly Color NECRO_DOT  = new Color(0.8f,  0f, 1f,    0.9f);
+
+    private readonly System.Collections.Generic.List<GameObject> _minions
+        = new System.Collections.Generic.List<GameObject>();
 
     public override void Initialize(BallController ownerBall)
     { base.Initialize(ownerBall); Cooldown = 3.0f; }
@@ -226,6 +273,8 @@ public class NecroWeapon : WeaponBase
     public override void Attack(BallController target)
     {
         if (!IsReady) return;
+
+        // Puls AoE + lifesteal
         var all = UnityEngine.Object.FindObjectsByType<BallController>(FindObjectsSortMode.None);
         float totalDmg = 0f;
         foreach (var b in all)
@@ -241,9 +290,40 @@ public class NecroWeapon : WeaponBase
         owner.Heal(totalDmg * LIFESTEAL);
         owner.FlashColor(new Color(0.5f, 0f, 0.8f), 0.3f);
         owner.PunchScale(1.5f, 0.3f);
-        AttackRingFX.SpawnWave(owner.transform.position, owner.Config.color, PULSE_RADIUS, 0.38f);
+        AttackRingFX.SpawnWave(owner.transform.position, new Color(0.4f, 0f, 0.6f), PULSE_RADIUS, 0.38f);
         ArenaEvents.FireAoE(owner.transform.position, owner.Config.color, PULSE_RADIUS);
+        AudioController.Instance?.PlayMeleeHit();
+
+        // Przywołaj nieumarłego minionka
+        SpawnMinion();
+
         StartCooldown();
+    }
+
+    void SpawnMinion()
+    {
+        _minions.RemoveAll(m => m == null);
+        if (_minions.Count >= MAX_MINIONS) return;
+
+        var go = new GameObject("NecroMinion");
+        go.transform.position   = owner.transform.position;
+        go.transform.localScale = Vector3.one * 0.38f;
+
+        var sr     = go.AddComponent<SpriteRenderer>();
+        sr.sprite  = BallArenaUtils.CircleSprite;
+        sr.color   = NECRO_BODY;
+        sr.sortingOrder = 2;
+
+        var rb          = go.AddComponent<Rigidbody2D>();
+        rb.gravityScale = 0f;
+        var col         = go.AddComponent<CircleCollider2D>();
+        col.radius      = 0.5f;
+        col.isTrigger   = true;
+
+        var minion = go.AddComponent<DruidMinion>();
+        minion.Initialize(owner, ScaleDmg(MINION_DMG), NECRO_DOT);
+
+        _minions.Add(go);
     }
 }
 
@@ -276,6 +356,7 @@ public class ElementWeapon : WeaponBase
         go.AddComponent<Projectile>().Initialize(owner, target, dir * SPEED, dmg, type,
             element == 0 ? 3f : 0f, 4f);
         owner.FlashColor(col, 0.15f);
+        AudioController.Instance?.PlayProjectileFire();
         StartCooldown();
     }
 }
@@ -302,6 +383,7 @@ public class PriestWeapon : WeaponBase
         go.AddComponent<Projectile>().Initialize(owner, target,
             (target.transform.position - owner.transform.position).normalized * 4f,
             0f, ProjectileType.Arrow, 0f, 2f);
+        AudioController.Instance?.PlayProjectileFire();
         StartCooldown();
     }
 }
@@ -332,6 +414,7 @@ public class TitanWeapon : WeaponBase
         target.ApplyKnockback((target.transform.position - owner.transform.position).normalized, 15f);
         owner.PunchScale(1.6f, 0.4f);
         owner.FlashColor(Color.white, 0.3f);
+        AudioController.Instance?.PlayMeleeHit();
         StartCooldown();
     }
 
@@ -348,6 +431,7 @@ public class TitanWeapon : WeaponBase
         }
         AttackRingFX.SpawnWave(owner.transform.position, owner.Config.color, QUAKE_RADIUS, 0.42f);
         ArenaEvents.FireAoE(owner.transform.position, owner.Config.color, QUAKE_RADIUS);
+        AudioController.Instance?.PlayTitanQuake();
     }
 
     public void OnBallCollision(BallController other)
@@ -362,40 +446,51 @@ public class TitanWeapon : WeaponBase
 // ─────────────────────────────────────────────────────────────────────────────
 public class DruidWeapon : WeaponBase
 {
-    const float MINION_DMG = 22f;
-    const int   MAX_MINIONS = 3;
+    const float MINION_DMG       = 22f;
+    const int   MAX_MINIONS      = 3;
+    const float SLOW_SPEED_MULT  = 0.5f;   // do 50% prędkości
+    const float SLOW_RANGE_REDUC = 0.45f;  // -45% zasięgu ataku (tylko range)
+    const float SLOW_DURATION    = 3.5f;
+
     private readonly System.Collections.Generic.List<GameObject> _minions
         = new System.Collections.Generic.List<GameObject>();
 
     public override void Initialize(BallController ownerBall)
-    { base.Initialize(ownerBall); Cooldown = 5f; }
+    { base.Initialize(ownerBall); Cooldown = 3.5f; }
 
     public override void Attack(BallController target)
     {
         if (!IsReady) return;
-        _minions.RemoveAll(m => m == null);
-        if (_minions.Count >= MAX_MINIONS) return;
 
-        var go = new GameObject("DruidMinion");
-        go.transform.position = owner.transform.position;
-        go.transform.localScale = Vector3.one * 0.38f;
-
-        var sr     = go.AddComponent<SpriteRenderer>();
-        sr.sprite  = BallArenaUtils.CircleSprite;
-        sr.color   = new Color(0.25f, 0.85f, 0.3f, 1f);
-        sr.sortingOrder = 2;
-
-        var rb          = go.AddComponent<Rigidbody2D>();
-        rb.gravityScale = 0f;
-        var col         = go.AddComponent<CircleCollider2D>();
-        col.radius      = 0.5f;
-        col.isTrigger   = true;
-
-        var minion = go.AddComponent<DruidMinion>();
-        minion.Initialize(owner, ScaleDmg(MINION_DMG));
-
-        _minions.Add(go);
+        // Nałóż spowolnienie + taunt na cel
+        target.ApplySlowness(SLOW_SPEED_MULT, SLOW_RANGE_REDUC, SLOW_DURATION, owner);
         owner.FlashColor(new Color(0.3f, 1f, 0.3f), 0.2f);
+        AudioController.Instance?.PlayMeleeHit();
+
+        // Przywołaj minionka jeśli mamy miejsce
+        _minions.RemoveAll(m => m == null);
+        if (_minions.Count < MAX_MINIONS)
+        {
+            var go = new GameObject("DruidMinion");
+            go.transform.position   = owner.transform.position;
+            go.transform.localScale = Vector3.one * 0.38f;
+
+            var sr     = go.AddComponent<SpriteRenderer>();
+            sr.sprite  = BallArenaUtils.CircleSprite;
+            sr.color   = new Color(0.25f, 0.85f, 0.3f, 1f);
+            sr.sortingOrder = 2;
+
+            var rb          = go.AddComponent<Rigidbody2D>();
+            rb.gravityScale = 0f;
+            var col         = go.AddComponent<CircleCollider2D>();
+            col.radius      = 0.5f;
+            col.isTrigger   = true;
+
+            var minion = go.AddComponent<DruidMinion>();
+            minion.Initialize(owner, ScaleDmg(MINION_DMG));
+            _minions.Add(go);
+        }
+
         StartCooldown();
     }
 }
@@ -463,6 +558,7 @@ public class GlitchWeapon : WeaponBase
         if (!IsReady) return;
         target.TakeDamage(ScaleDmg(BASE_DMG), owner);
         owner.FlashColor(CHAOS_COLORS[_colorIdx % CHAOS_COLORS.Length], 0.15f);
+        AudioController.Instance?.PlayMeleeHit();
         StartCooldown();
     }
 
@@ -534,6 +630,7 @@ public class PsychicWeapon : WeaponBase
         target.TakeDamage(ScaleDmg(DIRECT_DMG), owner);
         target.ApplyKnockback((target.transform.position - owner.transform.position).normalized, 8f);
         owner.FlashColor(new Color(0.6f, 0.1f, 1f), 0.2f);
+        AudioController.Instance?.PlayMeleeHit();
         StartCooldown();
     }
 }
@@ -603,6 +700,7 @@ public class MariachWeapon : WeaponBase
                         ProjectileType.Arrow, 0f, 3.5f);
         proj.OnHitCallback = OnDamageDealt;
         owner.FlashColor(new Color(1f, 0.6f, 0.1f), 0.12f);
+        AudioController.Instance?.PlayMariachiBullet();
         StartCooldown();
     }
 
@@ -739,8 +837,37 @@ public class NerdWeapon : WeaponBase
         // Kolor wg mocy: słaby = niebieski, mocny = czerwony
         float t = (float)_fibIdx / (Fibs.Length - 1);
         owner.FlashColor(Color.Lerp(new Color(0.4f, 0.6f, 1f), new Color(1f, 0.1f, 0.1f), t), 0.2f);
+        AudioController.Instance?.PlayMeleeHit();
 
         _fibIdx = Mathf.Min(_fibIdx + 1, Fibs.Length - 1);
         StartCooldown();
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helper – samodzielny fader cienia (działa niezależnie od życia kulki)
+// ─────────────────────────────────────────────────────────────────────────────
+public class ShadowFader : MonoBehaviour
+{
+    private float          _duration;
+    private float          _elapsed;
+    private SpriteRenderer _sr;
+    private Color          _startColor;
+
+    public void Init(float duration)
+    {
+        _duration   = duration;
+        _sr         = GetComponent<SpriteRenderer>();
+        _startColor = _sr.color;
+    }
+
+    private void Update()
+    {
+        _elapsed += Time.deltaTime;
+        float t   = _elapsed / _duration;
+        _sr.color = new Color(_startColor.r, _startColor.g, _startColor.b,
+                              Mathf.Lerp(_startColor.a, 0f, t));
+        transform.localScale *= (1f + Time.deltaTime * 1.2f);
+        if (_elapsed >= _duration) Destroy(gameObject);
     }
 }

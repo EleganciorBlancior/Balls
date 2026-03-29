@@ -7,13 +7,15 @@ public class DruidMinion : MonoBehaviour
     private float          damage;
     private Rigidbody2D    rb;
     private GameObject     _spinPivot;
+    private Color          _dotColor = new Color(1f, 1f, 0.3f, 0.95f);
     private const float    SPEED    = 5.5f;
     private const float    STEER    = 6f;
 
-    public void Initialize(BallController parentBall, float dmg)
+    public void Initialize(BallController parentBall, float dmg, Color dotColor = default)
     {
         parent = parentBall;
         damage = dmg;
+        if (dotColor != default) _dotColor = dotColor;
         rb     = GetComponent<Rigidbody2D>();
 
         // Dynamic – odbija się od ścian jak normalna kulka
@@ -55,7 +57,7 @@ public class DruidMinion : MonoBehaviour
 
         var s = dot.AddComponent<SpriteRenderer>();
         s.sprite       = BallArenaUtils.CircleSprite;
-        s.color        = new Color(1f, 1f, 0.3f, 0.95f);
+        s.color        = _dotColor;
         s.sortingOrder = 3;
     }
 

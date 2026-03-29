@@ -53,6 +53,7 @@ public class Projectile : MonoBehaviour
         if (pType == ProjectileType.PoisonBolt)
             ball.ApplyPoison(6f, 3f, owner);
 
+        AudioController.Instance?.PlayProjectileHit();
         OnHitCallback?.Invoke();
         Destroy(gameObject);
     }
