@@ -2219,12 +2219,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f57949192b4f3da2fa3fd53af0f0f3b1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BackgroundBalls
-  mode: 1
+  mode: 3
   ballCount: 22
   minRadius: 0.25
   maxRadius: 1.3
   minSpeed: 0.6
   maxSpeed: 2.2
+  arenaHalfSize: 9
 --- !u!4 &594247042
 Transform:
   m_ObjectHideFlags: 0

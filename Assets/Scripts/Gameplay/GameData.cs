@@ -36,7 +36,7 @@ public class GameData : MonoBehaviour
 {
     public static GameData Instance { get; private set; }
 
-    [HideInInspector] public int  gold           = 0;
+    [HideInInspector] public int  gold           = 100;
     [HideInInspector] public int  arenaTierIndex = 0;
 
     [HideInInspector] public List<BallClass>         purchasedBalls      = new List<BallClass>();
@@ -70,11 +70,11 @@ public class GameData : MonoBehaviour
     {
         _defaultTiers = new ArenaTier[]
         {
-            new ArenaTier { tierName="Mała (S)",          ballScaleMultiplier=1.000f, backgroundScale=18f, upgradeCost=  80, maxExtraBalls= 3  },
-            new ArenaTier { tierName="Średnia (M)",       ballScaleMultiplier=0.875f, backgroundScale=24f, upgradeCost= 150, maxExtraBalls= 9  },
-            new ArenaTier { tierName="Duża (L)",          ballScaleMultiplier=0.750f, backgroundScale=32f, upgradeCost= 250, maxExtraBalls=15  },
-            new ArenaTier { tierName="Gigant (XL)",       ballScaleMultiplier=0.625f, backgroundScale=42f, upgradeCost=1250, maxExtraBalls=21  },
-            new ArenaTier { tierName="Twoja matka (XXL)", ballScaleMultiplier=0.500f, backgroundScale=54f, upgradeCost=2500, maxExtraBalls=27  },
+            new ArenaTier { tierName="Mała (S)",          ballScaleMultiplier=1.000f, backgroundScale=18f, upgradeCost=  80, maxExtraBalls=3  },
+            new ArenaTier { tierName="Średnia (M)",       ballScaleMultiplier=0.875f, backgroundScale=24f, upgradeCost= 150, maxExtraBalls=9  },
+            new ArenaTier { tierName="Duża (L)",          ballScaleMultiplier=0.750f, backgroundScale=32f, upgradeCost= 250, maxExtraBalls=24  },
+            new ArenaTier { tierName="Gigant (XL)",       ballScaleMultiplier=0.625f, backgroundScale=42f, upgradeCost=1250, maxExtraBalls=49  },
+            new ArenaTier { tierName="Twoja matka (XXL)", ballScaleMultiplier=0.500f, backgroundScale=54f, upgradeCost=2500, maxExtraBalls=69  },
         };
     }
 

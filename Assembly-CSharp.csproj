@@ -66,6 +66,7 @@
     <Compile Include="Assets/Scripts/Gameplay/GameData.cs" />
     <Compile Include="Assets/Scripts/UI/ColorWheelPicker.cs" />
     <Compile Include="Assets/Scripts/UI/ShopListRow.cs" />
+    <Compile Include="Assets/Scripts/VFX/ArenaEvents.cs" />
     <Compile Include="Assets/Scripts/Gameplay/ArenaGameManager.cs" />
     <Compile Include="Assets/RoundedSquare/Scripts/CreateGrid.cs" />
     <Compile Include="Assets/Scripts/UI/MainMenuUI.cs" />

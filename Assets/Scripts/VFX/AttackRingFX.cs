@@ -1,83 +1,167 @@
-// AttackRingFX.cs
-// Rozszerzający się impuls (shockwave) jako oznaczenie ataku/zasięgu AoE
+// AttackRingFX.cs – fala uderzeniowa AoE w stylu "Kassadin ult" (LoL)
+// Pierścień wylatuje szybko od centrum, gwałtownie zwalnia przy granicy obszaru.
+// Środek blednie jako pierwszy, krawędź zostaje jasna najdłużej.
+// Efekt renderuje się ZA kulkami (sortingOrder ujemny) – nie przykrywa ich.
 using System.Collections;
 using UnityEngine;
 
 public class AttackRingFX : MonoBehaviour
 {
-    /// <summary>Spawnuje rozszerzający się impuls pierścienia.</summary>
-    /// <param name="pos">Pozycja środka</param>
-    /// <param name="col">Kolor</param>
-    /// <param name="maxRadius">Maksymalny promień</param>
-    /// <param name="duration">Czas trwania (s)</param>
-    public static void Spawn(Vector3 pos, Color col, float maxRadius, float duration = 0.4f)
+    // ─── Statyczne zasoby (tworzone raz i cache'owane) ────────────────────────
+    static Sprite   _ringSprite;
+    static Material _mat;
+
+    static Sprite RingSprite
     {
-        var go = new GameObject("RingFX");
-        go.transform.position = pos;
-        var fx = go.AddComponent<AttackRingFX>();
-        fx.col       = col;
-        fx.maxRadius = maxRadius;
-        fx.duration  = duration;
-        fx.Play();
-        Destroy(go, duration + 0.1f);
+        get
+        {
+            if (_ringSprite == null) _ringSprite = BuildRingSprite();
+            return _ringSprite;
+        }
     }
 
-    private Color col;
-    private float maxRadius;
-    private float duration;
-
-    void Play() => StartCoroutine(Animate());
-
-    IEnumerator Animate()
+    static Material Mat
     {
-        // Cząsteczki rozchodzące się po pierścieniu
-        var ps = gameObject.AddComponent<ParticleSystem>();
-        ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        get
+        {
+            if (_mat == null) _mat = new Material(Shader.Find("Sprites/Default"));
+            return _mat;
+        }
+    }
 
-        int   count     = Mathf.Clamp(Mathf.RoundToInt(maxRadius * 18f), 12, 60);
-        float startSize = Mathf.Clamp(maxRadius * 0.12f, 0.08f, 0.25f);
+    // Pierścień: cienki, ostry annulus z przezroczystym środkiem
+    static Sprite BuildRingSprite()
+    {
+        const int   SIZE        = 128;
+        const float INNER_RATIO = 0.76f; // 76% promienia = cienki, wyostrzony pierścień
+        const float SMOOTH      = 2f;
 
-        var main             = ps.main;
-        main.duration        = duration * 0.15f;
-        main.loop            = false;
-        main.startLifetime   = new ParticleSystem.MinMaxCurve(duration * 0.85f, duration);
-        main.startSpeed      = new ParticleSystem.MinMaxCurve(maxRadius / duration * 0.9f,
-                                                               maxRadius / duration * 1.1f);
-        main.startSize       = new ParticleSystem.MinMaxCurve(startSize * 0.7f, startSize);
-        main.startColor      = new ParticleSystem.MinMaxGradient(
-            new Color(col.r, col.g, col.b, 0.55f),
-            new Color(col.r, col.g, col.b, 0.35f));
-        main.gravityModifier = 0f;
-        main.simulationSpace = ParticleSystemSimulationSpace.World;
+        var tex = new Texture2D(SIZE, SIZE, TextureFormat.RGBA32, false);
+        tex.filterMode = FilterMode.Bilinear;
+        float c  = SIZE * 0.5f;
+        float OR = c - 1.5f;
+        float IR = OR * INNER_RATIO;
 
-        var emission             = ps.emission;
-        emission.rateOverTime    = 0;
-        emission.SetBursts(new[] { new ParticleSystem.Burst(0f, (short)count) });
+        for (int y = 0; y < SIZE; y++)
+        for (int x = 0; x < SIZE; x++)
+        {
+            float d  = Mathf.Sqrt((x - c) * (x - c) + (y - c) * (y - c));
+            float ao = Mathf.Clamp01((OR - d) / SMOOTH);
+            float ai = Mathf.Clamp01((d  - IR) / SMOOTH);
+            tex.SetPixel(x, y, new Color(1f, 1f, 1f, Mathf.Min(ao, ai)));
+        }
+        tex.Apply();
+        return Sprite.Create(tex, new Rect(0, 0, SIZE, SIZE), Vector2.one * 0.5f, SIZE * 0.5f);
+    }
 
-        var shape            = ps.shape;
-        shape.enabled        = true;
-        shape.shapeType      = ParticleSystemShapeType.Circle;
-        shape.radius         = 0.05f;   // mały – cząsteczki lecą od środka na zewnątrz
-        shape.radiusThickness = 1f;
+    // ─── Publiczne API ─────────────────────────────────────────────────────────
 
-        var colLife          = ps.colorOverLifetime;
-        colLife.enabled      = true;
-        var grad             = new Gradient();
-        grad.SetKeys(
-            new[] { new GradientColorKey(col, 0f), new GradientColorKey(col, 1f) },
-            new[] { new GradientAlphaKey(0.5f, 0f), new GradientAlphaKey(0f, 1f) });
-        colLife.color        = new ParticleSystem.MinMaxGradient(grad);
+    /// Pulsujący zarys zapowiedzi ataku przy granicy AoE.
+    /// Zwróć zwrócony GameObject i zniszcz go gdy atak odpala.
+    public static GameObject SpawnTelegraph(Vector3 pos, Color col, float radius)
+    {
+        var go = new GameObject("AoETelegraph");
+        go.transform.position = pos;
+        var fx = go.AddComponent<AttackRingFX>();
+        fx._col       = BoostColor(col);
+        fx._maxRadius = radius;
+        fx.StartCoroutine(fx.TelegraphRoutine());
+        return go;
+    }
 
-        var sizeLife         = ps.sizeOverLifetime;
-        sizeLife.enabled     = true;
-        var curve            = new AnimationCurve(new Keyframe(0f, 1f), new Keyframe(1f, 0.2f));
-        sizeLife.size        = new ParticleSystem.MinMaxCurve(1f, curve);
+    /// Główna fala ataku AoE: pierścień rozszerza się ease-out, środek blednie pierwszy.
+    public static void SpawnWave(Vector3 pos, Color col, float maxRadius, float duration = 0.38f)
+    {
+        var go = new GameObject("AoEWaveFX");
+        go.transform.position = pos;
+        var fx = go.AddComponent<AttackRingFX>();
+        fx._col       = BoostColor(col);
+        fx._maxRadius = maxRadius;
+        fx._duration  = duration;
+        fx.StartCoroutine(fx.WaveRoutine());
+        Destroy(go, duration + 0.5f);
+    }
 
-        var renderer         = ps.GetComponent<ParticleSystemRenderer>();
-        renderer.material    = new Material(Shader.Find("Sprites/Default"));
-        renderer.sortingOrder = 5;
+    /// Kompatybilność wsteczna z TechTurret i innymi systemami.
+    public static void Spawn(Vector3 pos, Color col, float maxRadius, float duration = 0.4f)
+        => SpawnWave(pos, col, maxRadius, duration);
 
-        ps.Play();
-        yield return null;
+    // ─── Prywatne ──────────────────────────────────────────────────────────────
+
+    Color _col;
+    float _maxRadius, _duration;
+
+    // Gwarantuje że kolor jest dostatecznie jasny i nasycony (dla dark klas jak Titan)
+    static Color BoostColor(Color c)
+    {
+        float maxC = Mathf.Max(c.r, c.g, c.b, 0.001f);
+        float scale = Mathf.Max(1f, 0.80f / maxC);
+        return new Color(
+            Mathf.Clamp01(c.r * scale),
+            Mathf.Clamp01(c.g * scale),
+            Mathf.Clamp01(c.b * scale), 1f);
+    }
+
+    SpriteRenderer MakeSR(Sprite spr, int order)
+    {
+        var go = new GameObject("_sr");
+        go.transform.SetParent(transform, false);
+        var sr       = go.AddComponent<SpriteRenderer>();
+        sr.sprite    = spr;
+        sr.material  = Mat;
+        sr.sortingOrder = order;
+        return sr;
+    }
+
+    // ─── Telegraph ─────────────────────────────────────────────────────────────
+    IEnumerator TelegraphRoutine()
+    {
+        var sr = MakeSR(RingSprite, -4);
+        sr.transform.localScale = Vector3.one * _maxRadius * 2f;
+        float t = 0f;
+        while (gameObject != null)
+        {
+            t += Time.deltaTime * 6f;
+            float a = 0.22f + Mathf.Sin(t) * 0.13f;
+            sr.color = new Color(_col.r, _col.g, _col.b, a);
+            yield return null;
+        }
+    }
+
+    // ─── Wave ──────────────────────────────────────────────────────────────────
+    IEnumerator WaveRoutine()
+    {
+        // Jedno wypełnione kółko: rozszerza się ease-out, potem rozpływa się na zewnątrz
+        var disc = MakeSR(BallArenaUtils.CircleSprite, -3);
+
+        const float EXPAND_END = 0.55f; // proporcja czasu przeznaczona na rozszerzanie
+        const float ALPHA      = 0.46f;
+
+        float t = 0f;
+        while (t < 1f)
+        {
+            t += Time.deltaTime / _duration;
+            float tc = Mathf.Clamp01(t);
+
+            if (tc < EXPAND_END)
+            {
+                // Faza 1: kółko rośnie 0 → maxRadius (ease-out-cubic: szybko ze środka, zwalnia na końcu)
+                float p     = tc / EXPAND_END;
+                float eased = 1f - Mathf.Pow(1f - p, 3f);
+                disc.transform.localScale = Vector3.one * (_maxRadius * eased * 2f);
+                disc.color = new Color(_col.r, _col.g, _col.b, ALPHA);
+            }
+            else
+            {
+                // Faza 2: kółko lekko dalej rośnie + zanika (efekt "rozpływania się")
+                float p     = (tc - EXPAND_END) / (1f - EXPAND_END); // 0 → 1
+                float scale = Mathf.Lerp(1f, 1.16f, p);
+                disc.transform.localScale = Vector3.one * (_maxRadius * scale * 2f);
+                float alpha = ALPHA * (1f - p * p); // ease-in: wolne zanikanie potem gwałtowne
+                disc.color = new Color(_col.r, _col.g, _col.b, alpha);
+            }
+
+            yield return null;
+        }
     }
 }

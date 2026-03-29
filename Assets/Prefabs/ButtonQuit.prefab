@@ -92,8 +92,8 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 24
-  m_fontSizeBase: 24
+  m_fontSize: 22
+  m_fontSizeBase: 22
   m_fontWeight: 400
   m_enableAutoSizing: 0
   m_fontSizeMin: 18
@@ -249,20 +249,13 @@ MonoBehaviour:
   pressScale: 2.75
   normalScale: 3
   scaleSpeed: 14
+  animateFill: 1
   fillImage: {fileID: 8036104710717370636}
-  tintFill: 0
-  fillNormal: {r: 1, g: 1, b: 1, a: 0}
-  fillHover: {r: 1, g: 1, b: 1, a: 0}
-  fillPress: {r: 1, g: 1, b: 1, a: 0}
-  fillDisabled: {r: 1, g: 1, b: 1, a: 0}
-  tintSpeed: 12
-  animateBorder: 0
-  borderImage: {fileID: 5554017959303498529}
-  borderNormal: {r: 0.15294118, g: 0.15294118, b: 0.15294118, a: 0.8}
-  borderHover: {r: 0.15294118, g: 0.15294118, b: 0.15294118, a: 0.8}
-  borderPress: {r: 0.21960784, g: 0.21960784, b: 0.21960784, a: 0.69803923}
-  borderDisabled: {r: 0.39607844, g: 0.39607844, b: 0.39607844, a: 0.6}
-  borderSpeed: 10
+  fillNormal: {r: 0.19607843, g: 0.19607843, b: 0.19607843, a: 0.8509804}
+  fillHover: {r: 0.19607843, g: 0.19607843, b: 0.19607843, a: 0.8509804}
+  fillPress: {r: 0.19607843, g: 0.19607843, b: 0.19607843, a: 0.8509804}
+  fillDisabled: {r: 0.19607843, g: 0.19607843, b: 0.19607843, a: 0.6}
+  fillSpeed: 10
   idlePulse: 0
   pulseAmount: 0.07
   pulseSpeed: 3
@@ -287,7 +280,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 2100000, guid: 55dc0a27ac9629b0cb12e9596c819cdc, type: 2}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Color: {r: 0.19607843, g: 0.19607843, b: 0.19607843, a: 0.8509804}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1

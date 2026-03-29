@@ -65,32 +65,19 @@ public class ArenaGameManager : MonoBehaviour
         if (shopButton   != null) shopButton.SetActive(false);
         if (winnerText   != null) winnerText.gameObject.SetActive(false);
         if (tierText     != null) tierText.text = "Arena: " + tier.tierName;
+
+        // Center Pull: kolor po użyciu #646464, alfa 90%
+        if (centerPullButton != null)
+        {
+            var anim = centerPullButton.GetComponent<ButtonAnimator>();
+            if (anim != null) anim.fillDisabled = new Color(0.392f, 0.392f, 0.392f, 0.9f);
+        }
     }
 
-    // ── Tło w dwóch warstwach ─────────────────────────────────────────────────
+    // ── Tło ───────────────────────────────────────────────────────────────────
     void SetupBackground(ArenaTier tier)
     {
-        // Warstwa 1: pełnoekranowy sprite (bardzo głęboko za wszystkim)
-        if (backgroundSprite != null)
-        {
-            var bg = new GameObject("BackgroundImage");
-            var sr = bg.AddComponent<SpriteRenderer>();
-            sr.sprite       = backgroundSprite;
-            sr.sortingOrder = -20;
-            var cam = Camera.main;
-            if (cam != null)
-            {
-                float camH = cam.orthographicSize * 2f;
-                float camW = camH * cam.aspect;
-                float sprH = backgroundSprite.bounds.size.y;
-                float sprW = backgroundSprite.bounds.size.x;
-                float s    = Mathf.Max(camW / sprW, camH / sprH);
-                bg.transform.localScale = Vector3.one * s * tier.backgroundScale * 0.06f;
-                // tier.backgroundScale to skala względna; normalizujemy przez /18
-            }
-        }
-
-        // Warstwa 2: kolorowe tło areny (tylko obszar areny)
+        // Kolorowe tło areny (tylko obszar areny)
         var fill = new GameObject("ArenaFill");
         fill.transform.position   = Vector3.zero;
         fill.transform.localScale = new Vector3(arenaHalfSize * 2f, arenaHalfSize * 2f, 1f);
@@ -242,6 +229,19 @@ public class ArenaGameManager : MonoBehaviour
         }
         if (restartPanel != null) restartPanel.SetActive(true);
         if (shopButton   != null) shopButton.SetActive(true);
+        // Natychmiastowe zamrożenie pozycji survivora
+        if (survivor != null)
+        {
+            survivor.Rb.linearVelocity = Vector2.zero;
+            survivor.Rb.constraints    = RigidbodyConstraints2D.FreezeAll;
+        }
+        ArenaEvents.FireGameEnd();
+        StartCoroutine(FreezeAfterDelay(0.7f));
+    }
+
+    System.Collections.IEnumerator FreezeAfterDelay(float delay)
+    {
+        yield return new WaitForSecondsRealtime(delay);
         Time.timeScale = 0f;
     }
 
@@ -277,6 +277,7 @@ public class ArenaGameManager : MonoBehaviour
             b.Rb.linearVelocity = Vector2.zero;
             b.Rb.AddForce(dir * wallBlastForce, ForceMode2D.Impulse);
         }
+        ArenaEvents.FireWallBlast();
         mechanicTimer = mechanicCooldown;
     }
 
@@ -289,6 +290,7 @@ public class ArenaGameManager : MonoBehaviour
             Vector2 dir = -(Vector2)b.transform.position.normalized;
             b.Rb.AddForce(dir * centerPullForce, ForceMode2D.Impulse);
         }
+        ArenaEvents.FireCenterPull();
         mechanicTimer = mechanicCooldown;
     }
 

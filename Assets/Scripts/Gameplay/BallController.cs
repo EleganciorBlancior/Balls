@@ -307,6 +307,7 @@ public class BallController : MonoBehaviour
         }
 
         BallDeathParticles.Spawn(transform.position, baseColor);
+        ArenaEvents.FireBallDied(transform.position, baseColor);
         if (GameData.Instance != null) GameData.Instance.gold += goldReward;
         if (KillFeed.Instance != null && killer != null)
             KillFeed.Instance.ReportKill(killer, this);

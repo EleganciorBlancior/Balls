@@ -241,6 +241,8 @@ public class NecroWeapon : WeaponBase
         owner.Heal(totalDmg * LIFESTEAL);
         owner.FlashColor(new Color(0.5f, 0f, 0.8f), 0.3f);
         owner.PunchScale(1.5f, 0.3f);
+        AttackRingFX.SpawnWave(owner.transform.position, owner.Config.color, PULSE_RADIUS, 0.38f);
+        ArenaEvents.FireAoE(owner.transform.position, owner.Config.color, PULSE_RADIUS);
         StartCooldown();
     }
 }
@@ -344,6 +346,8 @@ public class TitanWeapon : WeaponBase
             b.TakeDamage(QUAKE_DMG * (1f - d / QUAKE_RADIUS), owner);
             b.ApplyKnockback((b.transform.position - owner.transform.position).normalized, 3f);
         }
+        AttackRingFX.SpawnWave(owner.transform.position, owner.Config.color, QUAKE_RADIUS, 0.42f);
+        ArenaEvents.FireAoE(owner.transform.position, owner.Config.color, QUAKE_RADIUS);
     }
 
     public void OnBallCollision(BallController other)
@@ -482,12 +486,21 @@ public class PsychicWeapon : WeaponBase
     const float REPEL_RADIUS = 7f;
     const float REPEL_FORCE  = 14f;
     const float DIRECT_DMG   = 18f;
+    const float REPEL_CD     = 0.45f;  // min. czas między odpychaniami
+
+    private float _repelTimer = 0f;
 
     public override void Initialize(BallController ownerBall)
     {
         base.Initialize(ownerBall);
         Cooldown = 3f;
         owner.OnDamageTaken += OnHit;
+    }
+
+    protected override void Update()
+    {
+        base.Update();
+        if (_repelTimer > 0f) _repelTimer -= Time.deltaTime;
     }
 
     private void OnDestroy()
@@ -497,7 +510,9 @@ public class PsychicWeapon : WeaponBase
 
     void OnHit(float amount, BallController source)
     {
-        // Odepchij wszystkich w zasięgu
+        if (_repelTimer > 0f) return;   // cooldown – zapobiega pętli feedback
+        _repelTimer = REPEL_CD;
+
         var all = FindObjectsByType<BallController>(FindObjectsSortMode.None);
         foreach (var b in all)
         {
@@ -509,6 +524,8 @@ public class PsychicWeapon : WeaponBase
             b.StartPsychicRepel(owner);
         }
         owner.FlashColor(new Color(0.7f, 0.3f, 1f), 0.2f);
+        AttackRingFX.SpawnWave(owner.transform.position, owner.Config.color, REPEL_RADIUS, 0.50f);
+        ArenaEvents.FireAoE(owner.transform.position, owner.Config.color, REPEL_RADIUS);
     }
 
     public override void Attack(BallController target)
