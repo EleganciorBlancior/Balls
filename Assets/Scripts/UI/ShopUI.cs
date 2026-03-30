@@ -1,4 +1,4 @@
-// ShopUI.cs (v6) – akordeonowa lista (lewo) + panel szczegółów (prawo)
+// ShopUI.cs (v7) – akordeonowa lista (lewo) + panel szczegółów (prawo)
 //
 // UKŁAD SCENY (ustawić w Unity Editor):
 //
@@ -62,7 +62,7 @@ public class ShopUI : MonoBehaviour
     public TMP_Text   actionLabel;
 
     // ── Klasy ─────────────────────────────────────────────────────────────
-    [Header("Klasy (15 assetów)")]
+    [Header("Klasy (16 assetów)")]
     public List<ClassConfig> allClassConfigs;
 
     // ── Stan ──────────────────────────────────────────────────────────────
@@ -70,7 +70,7 @@ public class ShopUI : MonoBehaviour
     private bool _upgradesOpen  = false;
     private float _bobTimer;
 
-    private enum SelType { None, Ball, Arena }
+    private enum SelType { None, Ball, Arena, Pull }
     private SelType      _selType  = SelType.None;
     private ClassConfig  _selCfg;
     private int          _selTierIdx;
@@ -93,8 +93,8 @@ public class ShopUI : MonoBehaviour
         RefreshTopBar();
         BuildLists();
         ShowEmpty();
-        if (ballsToggleLabel    != null) ballsToggleLabel.text    = "Kulki ▼";
-        if (upgradesToggleLabel != null) upgradesToggleLabel.text = "Ulepszenia ▼";
+        if (ballsToggleLabel    != null) ballsToggleLabel.text    = LocalizationManager.BallsSection + " ▼";
+        if (upgradesToggleLabel != null) upgradesToggleLabel.text = LocalizationManager.UpgradesSection + " ▼";
 
         SetupHoldToBuy();
     }
@@ -124,7 +124,6 @@ public class ShopUI : MonoBehaviour
                 Mathf.Sin(_bobTimer * 1.5f) * 16f - 55f);
         }
 
-        // Fallback: jeśli przycisk myszy zwolniony (np. gdy ActionButton był nieaktywny i PointerUp nie odpalił)
         if (_actionHeld && UnityEngine.InputSystem.Mouse.current != null
             && UnityEngine.InputSystem.Mouse.current.leftButton.wasReleasedThisFrame)
         {
@@ -192,18 +191,44 @@ public class ShopUI : MonoBehaviour
             int nextIdx  = GameData.Instance.arenaTierIndex + 1;
             var nextTier = GameData.ArenaTiers[nextIdx];
             var row = SpawnRow(upgradesContent);
-            if (row == null) return;
-            row.Setup(new Color(0.8f, 0.6f, 0.1f),
-                      "Arena: " + nextTier.tierName,
-                      nextTier.upgradeCost + "g");
-            if (row.btn != null)
-                row.btn.onClick.AddListener(() => SelectArena(nextIdx));
+            if (row != null)
+            {
+                row.Setup(new Color(0.8f, 0.6f, 0.1f),
+                          "Arena: " + nextTier.tierName,
+                          nextTier.upgradeCost + "g");
+                if (row.btn != null)
+                    row.btn.onClick.AddListener(() => SelectArena(nextIdx));
+            }
         }
         else
         {
             var row = SpawnRow(upgradesContent);
             if (row != null)
-                row.Setup(new Color(0.4f, 0.4f, 0.4f), "Arena (maks.)", "MAX", false);
+                row.Setup(new Color(0.4f, 0.4f, 0.4f), LocalizationManager.ArenaMax, "MAX", false);
+        }
+
+        // Pull upgrade
+        int pullLvl = GameData.Instance.pullUpgradeLevel;
+        if (pullLvl < GameData.PULL_MAX_LEVEL)
+        {
+            int nextCost = GameData.GetPullUpgradeCost(pullLvl);
+            var row = SpawnRow(upgradesContent);
+            if (row != null)
+            {
+                row.Setup(new Color(0.2f, 0.6f, 0.9f),
+                          LocalizationManager.PullUpgradeTitle + " Poz." + (pullLvl + 1),
+                          nextCost + "g");
+                if (row.btn != null)
+                    row.btn.onClick.AddListener(() => SelectPull());
+            }
+        }
+        else
+        {
+            var row = SpawnRow(upgradesContent);
+            if (row != null)
+                row.Setup(new Color(0.4f, 0.4f, 0.4f),
+                          LocalizationManager.PullUpgradeTitle,
+                          "MAX", false);
         }
 
         if (upgradesContent != null)
@@ -230,7 +255,7 @@ public class ShopUI : MonoBehaviour
         _ballsOpen = !_ballsOpen;
         if (ballsContent != null) ballsContent.gameObject.SetActive(_ballsOpen);
         if (ballsToggleLabel != null)
-            ballsToggleLabel.text = "Kulki " + (_ballsOpen ? "▲" : "▼");
+            ballsToggleLabel.text = LocalizationManager.BallsSection + " " + (_ballsOpen ? "▲" : "▼");
     }
 
     public void ToggleUpgrades()
@@ -238,7 +263,7 @@ public class ShopUI : MonoBehaviour
         _upgradesOpen = !_upgradesOpen;
         if (upgradesContent != null) upgradesContent.gameObject.SetActive(_upgradesOpen);
         if (upgradesToggleLabel != null)
-            upgradesToggleLabel.text = "Ulepszenia " + (_upgradesOpen ? "▲" : "▼");
+            upgradesToggleLabel.text = LocalizationManager.UpgradesSection + " " + (_upgradesOpen ? "▲" : "▼");
     }
 
     // ── Selekcja ──────────────────────────────────────────────────────────
@@ -253,13 +278,15 @@ public class ShopUI : MonoBehaviour
         bool canBuy = GameData.Instance.gold >= price && owned < tier.maxExtraBalls;
 
         string btnText = canBuy
-            ? "KUP  –  " + price + "g"
-            : (GameData.Instance.gold < price ? "Za mało złota" : "Pełna arena");
+            ? LocalizationManager.BuyBtn(price)
+            : (GameData.Instance.gold < price
+                ? LocalizationManager.NotEnoughGold
+                : LocalizationManager.FullArena);
 
         ShowDetail(
             cfg.color,
             cfg.className,
-            GetFlavor(cfg.ballClass),
+            LocalizationManager.GetFlavor(cfg.ballClass),
             GetStats(cfg),
             btnText,
             canBuy
@@ -276,10 +303,29 @@ public class ShopUI : MonoBehaviour
         ShowDetail(
             new Color(0.8f, 0.6f, 0.1f),
             "Arena: " + tier.tierName,
-            "Więcej miejsca. Więcej kulek.",
-            "Limit kulek:  " + tier.maxExtraBalls + "\n" +
-            "Skala kulek:  x" + tier.ballScaleMultiplier.ToString("F2"),
-            canBuy ? "KUP – " +  tier.upgradeCost : "Za mało złota",
+            LocalizationManager.ArenaMoreSpace,
+            LocalizationManager.BallLimitLabel  + tier.maxExtraBalls + "\n" +
+            LocalizationManager.BallScaleLabel  + tier.ballScaleMultiplier.ToString("F2"),
+            canBuy ? LocalizationManager.BuyArenaBtn(tier.upgradeCost) : LocalizationManager.NotEnoughGold,
+            canBuy
+        );
+    }
+
+    void SelectPull()
+    {
+        _selType = SelType.Pull;
+        int pullLvl  = GameData.Instance.pullUpgradeLevel;
+        int nextCost = GameData.GetPullUpgradeCost(pullLvl);
+        float force  = GameData.GetPullForce(pullLvl + 1);
+        float dur    = GameData.GetPullDuration(pullLvl + 1);
+        bool canBuy  = GameData.Instance.gold >= nextCost;
+
+        ShowDetail(
+            new Color(0.2f, 0.6f, 0.9f),
+            LocalizationManager.PullUpgradeTitle + " → Poz." + (pullLvl + 1),
+            "Silniejszy i dłuższy pull",
+            LocalizationManager.PullStats(pullLvl + 1, force, dur),
+            canBuy ? LocalizationManager.BuyPullBtn(nextCost) : LocalizationManager.NotEnoughGold,
             canBuy
         );
     }
@@ -315,6 +361,7 @@ public class ShopUI : MonoBehaviour
         {
             case SelType.Ball:  TryBuyBall();  break;
             case SelType.Arena: TryBuyArena(); break;
+            case SelType.Pull:  TryBuyPull();  break;
         }
     }
 
@@ -325,42 +372,61 @@ public class ShopUI : MonoBehaviour
         int  owned  = GameData.Instance.purchasedBalls.Count;
         int  price  = GameData.GetBallPrice(_selCfg.ballClass);
 
-        if (owned >= tier.maxExtraBalls) { ShowMsg("Ulepsz arenę!"); return; }
-        if (GameData.Instance.gold < price) { ShowMsg("Za mało złota!"); return; }
+        if (owned >= tier.maxExtraBalls) { ShowMsg(LocalizationManager.UpgradeArena); return; }
+        if (GameData.Instance.gold < price) { ShowMsg(LocalizationManager.NotEnoughGold); return; }
 
         GameData.Instance.gold -= price;
         GameData.Instance.purchasedBalls.Add(_selCfg.ballClass);
         AudioController.Instance?.PlayShopBuy();
-        ShowMsg("Kupiono " + _selCfg.className + "!");
+        ShowMsg(LocalizationManager.BoughtBall(_selCfg.className));
         RefreshTopBar(); BuildLists();
-        SelectBall(_selCfg); // odśwież panel
+        SelectBall(_selCfg);
     }
 
     void TryBuyArena()
     {
         var tier = GameData.ArenaTiers[_selTierIdx];
-        if (GameData.Instance.gold < tier.upgradeCost) { ShowMsg("Za mało złota!"); return; }
+        if (GameData.Instance.gold < tier.upgradeCost) { ShowMsg(LocalizationManager.NotEnoughGold); return; }
         GameData.Instance.gold -= tier.upgradeCost;
         GameData.Instance.arenaTierIndex++;
         AudioController.Instance?.PlayShopBuy();
-        ShowMsg("Arena ulepszona!");
+        ShowMsg(LocalizationManager.ArenaUpgraded);
         RefreshTopBar();
         BuildUpgradesList();
-        // odśwież panel: pokaż kolejny tier lub info o maksie
         if (!GameData.Instance.IsMaxTier)
             SelectArena(GameData.Instance.arenaTierIndex + 1);
         else
             ShowEmpty();
     }
 
+    void TryBuyPull()
+    {
+        int pullLvl = GameData.Instance.pullUpgradeLevel;
+        if (pullLvl >= GameData.PULL_MAX_LEVEL) { ShowMsg(LocalizationManager.MaxUpgrade); return; }
+        int cost = GameData.GetPullUpgradeCost(pullLvl);
+        if (GameData.Instance.gold < cost) { ShowMsg(LocalizationManager.NotEnoughGold); return; }
 
-// ── Helpers ───────────────────────────────────────────────────────────
+        GameData.Instance.gold -= cost;
+        GameData.Instance.pullUpgradeLevel++;
+        AudioController.Instance?.PlayShopBuy();
+        ShowMsg(LocalizationManager.PullUpgraded);
+        RefreshTopBar();
+        BuildUpgradesList();
+
+        if (GameData.Instance.pullUpgradeLevel < GameData.PULL_MAX_LEVEL)
+            SelectPull();
+        else
+            ShowEmpty();
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────
     void RefreshTopBar()
     {
-        if (goldText != null) goldText.text = "Złoto: " + GameData.Instance.gold;
+        if (goldText != null) goldText.text = LocalizationManager.GoldPrefix + GameData.Instance.gold;
         if (infoText != null)
-            infoText.text = "Kulki: " + (5 + GameData.Instance.purchasedBalls.Count)
-                          + "\nArena: " + GameData.Instance.CurrentTier.tierName;
+            infoText.text = LocalizationManager.ShopInfoLine(
+                5 + GameData.Instance.purchasedBalls.Count,
+                GameData.Instance.CurrentTier.tierName);
     }
 
     void ShowMsg(string msg) { if (infoText != null) infoText.text = msg; }
@@ -375,32 +441,7 @@ public class ShopUI : MonoBehaviour
             "Kolizja: " + cfg.collisionDamage.ToString("F0");
     }
 
-    string GetFlavor(BallClass cls)
-    {
-        switch (cls)
-        {
-            case BallClass.Warrior:      return "Jebnie jak Darek Kaśce";
-            case BallClass.Mage:         return "Hustler, mefe sprzedaje kilogramami";
-            case BallClass.Archer:       return "Ratatata skurwysynu";
-            case BallClass.Rogue:        return "Mały ale wariat";
-            case BallClass.Paladin:      return "Pierdolony zawadiaka";
-            case BallClass.Berserker:    return "Jak ugryzie będzie ślad";
-            case BallClass.Necromancer:  return "Pawulonik 5mg";
-            case BallClass.Elementalist: return "Spierdolił z monaru";
-            case BallClass.Priest:       return "Żył w celibacie, poddał się po 3 dniu";
-            case BallClass.Titan:        return "Twoja stara";
-            case BallClass.Nerd:         return "Syn koleżanki twojej starej";
-            case BallClass.Glitch:       return "Podobno jego prawdziwe imię to feature";
-            case BallClass.Druid:        return "Zjednoczył emiraty arabskie";
-            case BallClass.Psychic:      return "Pojebał cukier z solą i dosypał cyjanku do kawy";
-            case BallClass.Technician:   return "Zdał zawodowe, chłopak twojej żony";
-            case BallClass.Mariachi:     return "Wszystko co robi potrafi skończyć, oprócz przyśpiewki";
-            default: return "";
-        }
-    }
-
     // ── Nawigacja ─────────────────────────────────────────────────────────
-    // ── Kompatybilność z ShopItem (stary prefab) ─────────────────────────
     public void TryBuyBall(ClassConfig cfg)
     {
         _selCfg  = cfg;
@@ -420,4 +461,5 @@ public class ShopUI : MonoBehaviour
     public void OnStartGameClicked() => SceneTransition.ExitTo("GameScene");
     public void OnMergeClicked()     => SceneTransition.ExitTo("MergeScene");
     public void OnBackClicked()      => SceneTransition.ExitTo("MainMenu");
+    public void OpenSettings()       => SettingsPanel.Open();
 }

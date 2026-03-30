@@ -10,8 +10,9 @@ public class MainMenuUI : MonoBehaviour
     [Header("Przyciski")]
     public GameObject playButton;
     public GameObject quitButton;
-    public Button  paintButton;
-    public TMP_Text paintButtonLabel;
+    public Button     paintButton;
+    public TMP_Text   paintButtonLabel;
+    public Button     settingsButton;
 
     [Header("Animacja tytułu (opcjonalne)")]
     public RectTransform titleRect;
@@ -25,6 +26,12 @@ public class MainMenuUI : MonoBehaviour
             var go = new GameObject("GameData");
             go.AddComponent<GameData>();
         }
+
+        // Przywróć ustawienia z GameData
+        LocalizationManager.SetLanguage(GameData.Instance.language);
+        AudioController.Instance?.SetSFXVolume(GameData.Instance.sfxVolume);
+        AudioController.Instance?.SetMusicVolume(GameData.Instance.musicVolume);
+        QualitySettings.SetQualityLevel(GameData.Instance.qualityLevel, true);
 
         RefreshPaintButton();
     }
@@ -41,7 +48,6 @@ public class MainMenuUI : MonoBehaviour
 
     private void Update()
     {
-        // Delikatne bujanie tytułu
         if (titleRect != null)
         {
             titleBobTimer += Time.deltaTime;
@@ -80,5 +86,10 @@ public class MainMenuUI : MonoBehaviour
         GameData.Instance.paintShopUnlocked = true;
         RefreshPaintButton();
         SceneTransition.ExitTo("PaintScene");
+    }
+
+    public void OnSettingsClicked()
+    {
+        SettingsPanel.Open(() => RefreshPaintButton());
     }
 }

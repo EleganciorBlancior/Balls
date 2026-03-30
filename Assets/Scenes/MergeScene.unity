@@ -167,21 +167,21 @@ MonoBehaviour:
   actionButton: {fileID: 1151058071}
   actionLabel: {fileID: 1151058069}
   allClassConfigs:
+  - {fileID: 11400000, guid: 4e2437c3c7c32a19c8739f1d4c3ce29e, type: 2}
   - {fileID: 11400000, guid: e28e44d505059e3e9831ebfa24e40721, type: 2}
   - {fileID: 11400000, guid: 2d6374597bcaff3bfb8de86f2063a384, type: 2}
-  - {fileID: 11400000, guid: 2aa5172e873ba9ef0b1b99a3dfa20758, type: 2}
-  - {fileID: 11400000, guid: dd0a0ea341faf33e785f61c88f0ff1aa, type: 2}
-  - {fileID: 11400000, guid: 754754504bd20aa19bd0fdcf37fa0b46, type: 2}
   - {fileID: 11400000, guid: cef8fccc46443e55f82f24a845bc2b7f, type: 2}
-  - {fileID: 11400000, guid: f5c9565e878d5c507867e900fbb1154b, type: 2}
   - {fileID: 11400000, guid: 173ea051be6660d60b83ae47aea8b94b, type: 2}
-  - {fileID: 11400000, guid: 86559034a7894507eb43916c461dde78, type: 2}
   - {fileID: 11400000, guid: 4b6422bf40e5c1eb6ae9f98de1ee97df, type: 2}
-  - {fileID: 11400000, guid: 46a1e4c71a6500dc9821bd9cdef0f897, type: 2}
+  - {fileID: 11400000, guid: 86559034a7894507eb43916c461dde78, type: 2}
+  - {fileID: 11400000, guid: 754754504bd20aa19bd0fdcf37fa0b46, type: 2}
+  - {fileID: 11400000, guid: dd0a0ea341faf33e785f61c88f0ff1aa, type: 2}
   - {fileID: 11400000, guid: e362dc3187171ef359bbfe79b75a3dba, type: 2}
+  - {fileID: 11400000, guid: 2aa5172e873ba9ef0b1b99a3dfa20758, type: 2}
+  - {fileID: 11400000, guid: f5c9565e878d5c507867e900fbb1154b, type: 2}
+  - {fileID: 11400000, guid: 46a1e4c71a6500dc9821bd9cdef0f897, type: 2}
   - {fileID: 11400000, guid: d7ca525966d35893a9fe4c40be2ebe98, type: 2}
   - {fileID: 11400000, guid: 4d4f66a225577c2edb22560f51cdb49b, type: 2}
-  - {fileID: 11400000, guid: 4e2437c3c7c32a19c8739f1d4c3ce29e, type: 2}
   - {fileID: 11400000, guid: 901e74cd46fac1bd5bcb9dd9a9e49a92, type: 2}
 --- !u!4 &64645779
 Transform:
@@ -2942,7 +2942,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
-  m_Material: {fileID: 2100000, guid: 18cdaae53ab63117c81562ad50e32c05, type: 2}
+  m_Material: {fileID: 0}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
@@ -2950,7 +2950,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 0}
+  m_Sprite: {fileID: -6296899107171039021, guid: 41fd9c3dcd0e4feb5bc552f00dd41d79, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -2990,9 +2990,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BackgroundBalls
   mode: 2
+  ballSprite: {fileID: 0}
   ballCount: 20
-  minRadius: 0.5
-  maxRadius: 1.2
+  minRadius: 0.4
+  maxRadius: 1.5
   minSpeed: 0.6
   maxSpeed: 2.2
   arenaHalfSize: 9
@@ -3815,7 +3816,7 @@ SceneRoots:
   - {fileID: 404105027}
   - {fileID: 251832343}
   - {fileID: 1364600841}
-  - {fileID: 64645779}
   - {fileID: 1444238513}
   - {fileID: 135236619}
   - {fileID: 691760921}
+  - {fileID: 64645779}

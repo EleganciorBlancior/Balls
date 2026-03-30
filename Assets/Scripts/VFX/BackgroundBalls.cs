@@ -18,10 +18,13 @@ public class BackgroundBalls : MonoBehaviour
     [Header("Tryb")]
     public Mode mode = Mode.Bouncing;
 
+    [Header("Sprite kulki (opcjonalne – jeśli puste używa Resources/ballSprite)")]
+    public Sprite ballSprite;
+
     [Header("Ustawienia ogólne")]
     public int   ballCount  = 12;
-    public float minRadius  = 0.18f;
-    public float maxRadius  = 0.45f;
+    public float minRadius  = 0.0001f;
+    public float maxRadius  = 0.0002f;
     public float minSpeed   = 1.2f;
     public float maxSpeed   = 3.0f;
 
@@ -113,6 +116,8 @@ public class BackgroundBalls : MonoBehaviour
         ArenaEvents.OnGameEnd    -= HandleGameEnd;
     }
 
+    Sprite GetBallSprite() => ballSprite != null ? ballSprite : BallArenaUtils.CircleSprite;
+
     void Start()
     {
         _cam = Camera.main;
@@ -156,7 +161,7 @@ public class BackgroundBalls : MonoBehaviour
         b.go = new GameObject("BGBall_" + index);
         b.go.transform.SetParent(transform);
         b.sr = b.go.AddComponent<SpriteRenderer>();
-        b.sr.sprite       = BallArenaUtils.CircleSprite;
+        b.sr.sprite       = GetBallSprite();
         b.sr.color        = b.baseColor;
         b.sr.sortingOrder = -10;
         b.go.transform.localScale = Vector3.one * r * 2f;
@@ -203,7 +208,7 @@ public class BackgroundBalls : MonoBehaviour
         b.go = new GameObject("PaintBall_" + index);
         b.go.transform.SetParent(transform);
         b.sr = b.go.AddComponent<SpriteRenderer>();
-        b.sr.sprite       = BallArenaUtils.CircleSprite;
+        b.sr.sprite       = GetBallSprite();
         b.sr.sortingOrder = -10 + (index % 4);
         b.go.transform.localScale = Vector3.one * r * 2f;
         b.go.transform.position   = new Vector3(
@@ -240,7 +245,7 @@ public class BackgroundBalls : MonoBehaviour
         b.go = new GameObject("ArenaBG_" + index);
         b.go.transform.SetParent(transform);
         b.sr = b.go.AddComponent<SpriteRenderer>();
-        b.sr.sprite       = BallArenaUtils.CircleSprite;
+        b.sr.sprite       = GetBallSprite();
         b.sr.sortingOrder = -18;
         b.go.transform.localScale = Vector3.one * r * 2f;
         b.go.transform.position   = RandomMarginPos();
@@ -502,7 +507,7 @@ public class BackgroundBalls : MonoBehaviour
             burst[i].transform.position = pos;
 
             var sr  = burst[i].AddComponent<SpriteRenderer>();
-            sr.sprite       = BallArenaUtils.CircleSprite;
+            sr.sprite       = GetBallSprite();
             sr.sortingOrder = -14;
             sr.transform.localScale = Vector3.one * Random.Range(0.06f, 0.18f);
             sr.color        = new Color(col.r, col.g, col.b, 0.55f);

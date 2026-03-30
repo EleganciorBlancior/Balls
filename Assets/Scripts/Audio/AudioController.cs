@@ -6,7 +6,7 @@ public class AudioController : MonoBehaviour
 {
     public static AudioController Instance { get; private set; }
 
-    [Header("SFX")]
+    [Header("SFX – Klipy")]
     public AudioClip ballCollision;
     public AudioClip ballDeath;
     public AudioClip buttonClick;
@@ -19,11 +19,27 @@ public class AudioController : MonoBehaviour
     public AudioClip roundStart;
     public AudioClip shopBuy;
     public AudioClip titanQuake;
+    public AudioClip accelerationWarning;  // wskaźnik przyspieszenia kulek
 
     [Header("Muzyka")]
     public AudioClip musicArena;
 
-    [Header("Głośność")]
+    [Header("Normalizacja SFX (mnożniki na klip – ustaw w Inspectorze)")]
+    [Range(0f, 2f)] public float normBallCollision   = 0.7f;
+    [Range(0f, 2f)] public float normBallDeath        = 1.0f;
+    [Range(0f, 2f)] public float normButtonClick      = 0.6f;
+    [Range(0f, 2f)] public float normMariachiBullet   = 0.8f;
+    [Range(0f, 2f)] public float normMeleeHit         = 0.9f;
+    [Range(0f, 2f)] public float normProjectileFire   = 0.7f;
+    [Range(0f, 2f)] public float normProjectileHit    = 0.8f;
+    [Range(0f, 2f)] public float normRogueTeleport    = 0.7f;
+    [Range(0f, 2f)] public float normRoundEnd         = 1.0f;
+    [Range(0f, 2f)] public float normRoundStart       = 1.0f;
+    [Range(0f, 2f)] public float normShopBuy          = 0.6f;
+    [Range(0f, 2f)] public float normTitanQuake       = 1.0f;
+    [Range(0f, 2f)] public float normAccelWarning     = 1.0f;
+
+    [Header("Głośność master")]
     [Range(0f, 1f)] public float sfxVolume   = 1f;
     [Range(0f, 1f)] public float musicVolume = 0.4f;
 
@@ -42,13 +58,22 @@ public class AudioController : MonoBehaviour
         _music              = gameObject.AddComponent<AudioSource>();
         _music.loop         = true;
         _music.playOnAwake  = false;
-        _music.volume       = musicVolume;
     }
 
     private void Start()
     {
-        ArenaEvents.OnBallDied += (_, __) => Play(ballDeath);
-        ArenaEvents.OnGameEnd  += ()      => Play(roundEnd);
+        // Załaduj głośności z GameData jeśli dostępne
+        if (GameData.Instance != null)
+        {
+            sfxVolume   = GameData.Instance.sfxVolume;
+            musicVolume = GameData.Instance.musicVolume;
+        }
+
+        _music.volume = musicVolume;
+
+        ArenaEvents.OnBallDied += (_, __) => Play(ballDeath, normBallDeath);
+        ArenaEvents.OnGameEnd  += ()      => Play(roundEnd,  normRoundEnd);
+
         if (musicArena != null)
         {
             _music.clip   = musicArena;
@@ -57,21 +82,36 @@ public class AudioController : MonoBehaviour
         }
     }
 
-    // ── SFX publiczne ────────────────────────────────────────────────────────
-    public void PlayBallCollision()   => Play(ballCollision);
-    public void PlayButtonClick()     => Play(buttonClick);
-    public void PlayMeleeHit()        => Play(meleeHit);
-    public void PlayProjectileFire()  => Play(projectileFire);
-    public void PlayProjectileHit()   => Play(projectileHit);
-    public void PlayMariachiBullet()  => Play(mariachiBullet);
-    public void PlayRogueTeleport()   => Play(rogueTeleport);
-    public void PlayTitanQuake()      => Play(titanQuake);
-    public void PlayShopBuy()         => Play(shopBuy);
-    public void PlayRoundStart()      => Play(roundStart);
+    // ── Publiczne settery głośności ───────────────────────────────────────────
+    public void SetSFXVolume(float v)
+    {
+        sfxVolume = Mathf.Clamp01(v);
+        if (GameData.Instance != null) GameData.Instance.sfxVolume = sfxVolume;
+    }
 
-    void Play(AudioClip clip)
+    public void SetMusicVolume(float v)
+    {
+        musicVolume = Mathf.Clamp01(v);
+        if (_music != null) _music.volume = musicVolume;
+        if (GameData.Instance != null) GameData.Instance.musicVolume = musicVolume;
+    }
+
+    // ── SFX publiczne ────────────────────────────────────────────────────────
+    public void PlayBallCollision()       => Play(ballCollision,        normBallCollision);
+    public void PlayButtonClick()         => Play(buttonClick,          normButtonClick);
+    public void PlayMeleeHit()            => Play(meleeHit,             normMeleeHit);
+    public void PlayProjectileFire()      => Play(projectileFire,       normProjectileFire);
+    public void PlayProjectileHit()       => Play(projectileHit,        normProjectileHit);
+    public void PlayMariachiBullet()      => Play(mariachiBullet,       normMariachiBullet);
+    public void PlayRogueTeleport()       => Play(rogueTeleport,        normRogueTeleport);
+    public void PlayTitanQuake()          => Play(titanQuake,           normTitanQuake);
+    public void PlayShopBuy()             => Play(shopBuy,              normShopBuy);
+    public void PlayRoundStart()          => Play(roundStart,           normRoundStart);
+    public void PlayAccelerationWarning() => Play(accelerationWarning,  normAccelWarning);
+
+    void Play(AudioClip clip, float normMultiplier = 1f)
     {
         if (clip == null || _sfx == null) return;
-        _sfx.PlayOneShot(clip, sfxVolume);
+        _sfx.PlayOneShot(clip, sfxVolume * normMultiplier);
     }
 }

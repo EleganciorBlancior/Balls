@@ -2093,9 +2093,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BackgroundBalls
   mode: 3
+  ballSprite: {fileID: -6296899107171039021, guid: 6777caea485d74716941bee4f3b25b9a, type: 3}
   ballCount: 22
-  minRadius: 0.25
-  maxRadius: 1.3
+  minRadius: 0.1
+  maxRadius: 1.1
   minSpeed: 0.6
   maxSpeed: 2.2
   arenaHalfSize: 9
@@ -3952,7 +3953,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 0}
+  m_Sprite: {fileID: -6296899107171039021, guid: 41fd9c3dcd0e4feb5bc552f00dd41d79, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1

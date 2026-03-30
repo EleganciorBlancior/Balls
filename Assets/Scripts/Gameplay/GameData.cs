@@ -45,6 +45,33 @@ public class GameData : MonoBehaviour
     [HideInInspector] public List<BallCustomization> ballCustomizations  = new List<BallCustomization>();
     [HideInInspector] public bool                    paintShopUnlocked   = false;
 
+    // ── Ustawienia ────────────────────────────────────────────────────────────
+    [HideInInspector] public float        sfxVolume    = 1f;
+    [HideInInspector] public float        musicVolume  = 0.4f;
+    [HideInInspector] public int          qualityLevel = 1;
+    [HideInInspector] public GameLanguage language     = GameLanguage.PL;
+
+    // ── Ulepszenie Pulla ──────────────────────────────────────────────────────
+    [HideInInspector] public int pullUpgradeLevel = 0;
+    public const int PULL_MAX_LEVEL = 4;
+
+    public static int GetPullUpgradeCost(int currentLevel)
+    {
+        switch (currentLevel)
+        {
+            case 0: return 100;
+            case 1: return 200;
+            case 2: return 400;
+            case 3: return 800;
+            default: return 0;
+        }
+    }
+
+    // Siła impulsu przy TriggerCenterPull
+    public static float GetPullForce(int level)    => 18f + level * 8f;
+    // Czas trwania ciągłego przyciągania po impulsie (sekundy)
+    public static float GetPullDuration(int level) => level * 0.6f;
+
     public const int PAINT_SHOP_COST = 300;
 
     static readonly BallClass[] BASE_CLASSES =

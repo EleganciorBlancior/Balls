@@ -1755,9 +1755,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BackgroundBalls
   mode: 1
+  ballSprite: {fileID: 0}
   ballCount: 22
-  minRadius: 0.25
-  maxRadius: 1.3
+  minRadius: 0.2
+  maxRadius: 1.1
   minSpeed: 0.6
   maxSpeed: 2.2
   arenaHalfSize: 9
@@ -3725,7 +3726,7 @@ SceneRoots:
   - {fileID: 2878877}
   - {fileID: 223319273}
   - {fileID: 90547263}
-  - {fileID: 1524105412}
   - {fileID: 594247042}
   - {fileID: 1729829479}
   - {fileID: 209933492}
+  - {fileID: 1524105412}

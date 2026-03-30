@@ -3,12 +3,18 @@ using UnityEngine;
 public static class BallArenaUtils
 {
     // ── Sprite kółka ─────────────────────────────────────────────────────────
-    private static Sprite _circle;
+    // Ustaw BallArenaUtils.OverrideCircleSprite = mySprite żeby użyć własnego spritu.
+    // Jeśli null, generowany jest okrąg 64px proceduralnie.
+    private static Sprite _circleCache;
     public static Sprite CircleSprite
     {
         get
         {
-            if (_circle != null) return _circle;
+            if (_circleCache != null) return _circleCache;
+            // Próba załadowania ze ścieżki Assets/Img/ballSprite
+            _circleCache = Resources.Load<Sprite>("ballSprite");
+            if (_circleCache != null) return _circleCache;
+            // Fallback: proceduralne kółko 64px
             int sz = 64; var tex = new Texture2D(sz, sz); float r = sz * 0.5f;
             for (int y = 0; y < sz; y++)
                 for (int x = 0; x < sz; x++)
@@ -18,8 +24,8 @@ public static class BallArenaUtils
                     tex.SetPixel(x, y, new Color(1,1,1,a));
                 }
             tex.Apply();
-            _circle = Sprite.Create(tex, new Rect(0,0,sz,sz), Vector2.one*0.5f, sz);
-            return _circle;
+            _circleCache = Sprite.Create(tex, new Rect(0,0,sz,sz), Vector2.one*0.5f, sz);
+            return _circleCache;
         }
     }
 

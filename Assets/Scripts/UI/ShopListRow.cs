@@ -14,8 +14,12 @@ public class ShopListRow : MonoBehaviour
     public Image      dot;
     public TMP_Text   label;
     public TMP_Text   badge;
+    public Image      background;
     [HideInInspector] public Button     btn;
     [HideInInspector] public GameObject detailView;
+
+    private static readonly Color BG_READY  = new Color(1f, 0.85f, 0.1f, 0.18f);
+    private static readonly Color BG_NORMAL = new Color(0f, 0f, 0f, 0f);
 
     // Wywoływane jawnie przez SpawnRow – nie polega na Awake (który nie odpala
     // gdy parent jest nieaktywny w momencie Instantiate).
@@ -39,11 +43,12 @@ public class ShopListRow : MonoBehaviour
     }
 
     public void Setup(Color dotColor, string labelText, string badgeText,
-                      bool interactable = true)
+                      bool interactable = true, bool readyToMerge = false)
     {
-        if (dot   != null) dot.color    = dotColor;
-        if (label != null) label.text   = labelText;
-        if (badge != null) badge.text   = badgeText;
-        if (btn   != null) btn.interactable = interactable;
+        if (dot        != null) dot.color        = dotColor;
+        if (label      != null) label.text       = labelText;
+        if (badge      != null) badge.text       = badgeText;
+        if (btn        != null) btn.interactable = interactable;
+        if (background != null) background.color = readyToMerge ? BG_READY : BG_NORMAL;
     }
 }
