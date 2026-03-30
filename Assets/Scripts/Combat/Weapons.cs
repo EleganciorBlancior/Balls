@@ -6,8 +6,9 @@ using UnityEngine;
 // ─────────────────────────────────────────────────────────────────────────────
 public class SwordWeapon : WeaponBase
 {
-    private bool  charging;
-    private float chargeTimer;
+    private bool    charging;
+    private float   chargeTimer;
+    private Vector2 chargeDir;
     const float CHARGE_DURATION = 0.4f;
     const float CHARGE_MULT     = 2.8f;
     const float SLAM_DMG        = 40f;
@@ -22,29 +23,40 @@ public class SwordWeapon : WeaponBase
         {
             chargeTimer -= Time.deltaTime;
             if (chargeTimer <= 0f) charging = false;
-            return;
         }
-        // Update odpala po callbackach fizyki (OnCollisionEnter2D, OnTriggerEnter2D)
-        // – koryguje prędkość na tej samej klatce co obrażenia/kolizja
         EnforceSpeed();
     }
 
     private void FixedUpdate()
     {
-        if (!charging) EnforceSpeed();
+        EnforceSpeed();
     }
 
     void EnforceSpeed()
     {
-        if (owner == null || owner.Rb.linearVelocity.magnitude < 0.1f) return;
-        owner.Rb.linearVelocity = owner.Rb.linearVelocity.normalized * owner.EffectiveSpeed;
+        if (owner == null) return;
+        if (charging)
+        {
+            owner.Rb.linearVelocity = chargeDir * owner.Config.moveSpeed * CHARGE_MULT;
+            return;
+        }
+        float sqSpd = owner.Rb.linearVelocity.sqrMagnitude;
+        float target = owner.EffectiveSpeed;
+        if (sqSpd < 0.01f)
+        {
+            float ang = Random.Range(0f, Mathf.PI * 2f);
+            owner.Rb.linearVelocity = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang)) * target;
+            return;
+        }
+        if (sqSpd < target * target)
+            owner.Rb.linearVelocity = owner.Rb.linearVelocity.normalized * target;
     }
 
     public override void Attack(BallController target)
     {
         if (!IsReady || charging) return;
-        Vector2 dir = (target.transform.position - owner.transform.position).normalized;
-        owner.Rb.linearVelocity = dir * owner.Config.moveSpeed * CHARGE_MULT;
+        chargeDir = (target.transform.position - owner.transform.position).normalized;
+        owner.Rb.linearVelocity = chargeDir * owner.Config.moveSpeed * CHARGE_MULT;
         charging = true; chargeTimer = CHARGE_DURATION;
         owner.FlashColor(Color.white, 0.15f);
         AudioController.Instance?.PlayMeleeHit();
@@ -57,6 +69,7 @@ public class SwordWeapon : WeaponBase
         other.TakeDamage(dmg, owner);
         if (charging)
             other.ApplyKnockback((other.transform.position - owner.transform.position).normalized, 6f);
+        EnforceSpeed();
     }
 }
 

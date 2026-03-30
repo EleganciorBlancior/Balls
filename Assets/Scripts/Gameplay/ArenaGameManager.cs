@@ -27,7 +27,7 @@ public class ArenaGameManager : MonoBehaviour
     public float mechanicCooldown = 8f;
 
     [Header("Przyspieszenie kulek")]
-    public float accelerationStartTime   = 5f;  // po ilu sekundach zaczyna się przyspieszanie
+    public float accelerationStartTime   = 30f;  // po ilu sekundach zaczyna się przyspieszanie
     public float accelerationInterval    = 5f;   // co ile sekund kolejny krok
     [Range(0f, 0.5f)]
     public float accelerationPerStep     = 0.12f; // +12% prędkości każdy krok
@@ -252,6 +252,7 @@ public class ArenaGameManager : MonoBehaviour
     {
         if (_gameEnded) return;
         _gameEnded = true;
+        AudioController.Instance?.StopAccelerationWarning();
 
         BallController survivor = null;
         foreach (var b in balls) if (b.IsAlive) { survivor = b; break; }

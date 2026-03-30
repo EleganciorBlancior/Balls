@@ -19,7 +19,7 @@ MonoBehaviour:
   color3: {r: 1, g: 1, b: 1, a: 1}
   pattern: 0
   stripeCount: 5
-  maxHP: 180
+  maxHP: 120
   radius: 0.55
   moveSpeed: 2
   attackRange: 1.4

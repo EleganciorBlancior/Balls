@@ -44,6 +44,7 @@ public class AudioController : MonoBehaviour
     [Range(0f, 1f)] public float musicVolume = 0.4f;
 
     private AudioSource _sfx;
+    private AudioSource _sfxAccel;
     private AudioSource _music;
 
     private void Awake()
@@ -54,6 +55,9 @@ public class AudioController : MonoBehaviour
 
         _sfx             = gameObject.AddComponent<AudioSource>();
         _sfx.playOnAwake = false;
+
+        _sfxAccel             = gameObject.AddComponent<AudioSource>();
+        _sfxAccel.playOnAwake = false;
 
         _music              = gameObject.AddComponent<AudioSource>();
         _music.loop         = true;
@@ -107,7 +111,13 @@ public class AudioController : MonoBehaviour
     public void PlayTitanQuake()          => Play(titanQuake,           normTitanQuake);
     public void PlayShopBuy()             => Play(shopBuy,              normShopBuy);
     public void PlayRoundStart()          => Play(roundStart,           normRoundStart);
-    public void PlayAccelerationWarning() => Play(accelerationWarning,  normAccelWarning);
+    public void PlayAccelerationWarning()
+    {
+        if (accelerationWarning == null || _sfxAccel == null) return;
+        _sfxAccel.PlayOneShot(accelerationWarning, sfxVolume * normAccelWarning);
+    }
+
+    public void StopAccelerationWarning() => _sfxAccel?.Stop();
 
     void Play(AudioClip clip, float normMultiplier = 1f)
     {

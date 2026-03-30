@@ -18,8 +18,6 @@ public class ShopListRow : MonoBehaviour
     [HideInInspector] public Button     btn;
     [HideInInspector] public GameObject detailView;
 
-    private static readonly Color BG_READY  = new Color(1f, 0.85f, 0.1f, 0.18f);
-    private static readonly Color BG_NORMAL = new Color(0f, 0f, 0f, 0f);
 
     // Wywoływane jawnie przez SpawnRow – nie polega na Awake (który nie odpala
     // gdy parent jest nieaktywny w momencie Instantiate).
@@ -49,6 +47,6 @@ public class ShopListRow : MonoBehaviour
         if (label      != null) label.text       = labelText;
         if (badge      != null) badge.text       = badgeText;
         if (btn        != null) btn.interactable = interactable;
-        if (background != null) background.color = readyToMerge ? BG_READY : BG_NORMAL;
+        if (background != null) { var c = background.color; c.a = readyToMerge ? 1f : 0f; background.color = c; }
     }
 }
