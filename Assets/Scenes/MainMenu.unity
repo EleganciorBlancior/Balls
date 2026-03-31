@@ -727,6 +727,7 @@ MonoBehaviour:
   titanQuake: {fileID: 8300000, guid: 2bce076f910f13d968013cb20827dd02, type: 3}
   accelerationWarning: {fileID: 8300000, guid: 1461717973c0f86ff95ef4aa0a1225b6, type: 3}
   musicArena: {fileID: 8300000, guid: 6f349dc9a70338d8ba50e785f19b9946, type: 3}
+  musicArena2: {fileID: 8300000, guid: 23b19808fc2c7efcb9331b9eb7b0d499, type: 3}
   normBallCollision: 0.7
   normBallDeath: 1.33
   normButtonClick: 0.6

@@ -1,4 +1,5 @@
 // AudioController.cs
+using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -23,6 +24,7 @@ public class AudioController : MonoBehaviour
 
     [Header("Muzyka")]
     public AudioClip musicArena;
+    public AudioClip musicArena2;
 
     [Header("Normalizacja SFX (mnożniki na klip – ustaw w Inspectorze)")]
     [Range(0f, 2f)] public float normBallCollision   = 0.7f;
@@ -46,6 +48,7 @@ public class AudioController : MonoBehaviour
     private AudioSource _sfx;
     private AudioSource _sfxAccel;
     private AudioSource _music;
+    private int _musicIndex = 0;
 
     private void Awake()
     {
@@ -59,9 +62,9 @@ public class AudioController : MonoBehaviour
         _sfxAccel             = gameObject.AddComponent<AudioSource>();
         _sfxAccel.playOnAwake = false;
 
-        _music              = gameObject.AddComponent<AudioSource>();
-        _music.loop         = true;
-        _music.playOnAwake  = false;
+        _music             = gameObject.AddComponent<AudioSource>();
+        _music.loop        = false;
+        _music.playOnAwake = false;
     }
 
     private void Start()
@@ -79,10 +82,24 @@ public class AudioController : MonoBehaviour
         ArenaEvents.OnGameEnd  += ()      => Play(roundEnd,  normRoundEnd);
 
         if (musicArena != null)
+            StartCoroutine(MusicLoop());
+    }
+
+    // ── Pętla muzyki naprzemiennej ───────────────────────────────────────────
+    private IEnumerator MusicLoop()
+    {
+        AudioClip[] tracks = musicArena2 != null
+            ? new[] { musicArena, musicArena2 }
+            : new[] { musicArena };
+
+        while (true)
         {
-            _music.clip   = musicArena;
+            AudioClip clip = tracks[_musicIndex % tracks.Length];
+            _music.clip   = clip;
             _music.volume = musicVolume;
             _music.Play();
+            yield return new WaitUntil(() => !_music.isPlaying);
+            _musicIndex++;
         }
     }
 
