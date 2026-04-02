@@ -5,23 +5,33 @@ public enum GameLanguage { PL, EN }
 
 public static class LocalizationManager
 {
-    public static GameLanguage Language { get; private set; } = GameLanguage.PL;
+    public static GameLanguage Language { get; private set; } = GameLanguage.EN;
 
     public static void SetLanguage(GameLanguage lang) { Language = lang; }
 
     // ── Ogólne ────────────────────────────────────────────────────────────────
     public static string Back       => Language == GameLanguage.PL ? "Wróć"        : "Back";
-    public static string Settings   => Language == GameLanguage.PL ? "Ustawienia"  : "Settings";
+    public static string Settings   => Language == GameLanguage.PL ? "OPCJE"  : "SETTINGS";
     public static string Quit       => Language == GameLanguage.PL ? "WYJDŹ"       : "QUIT";
     public static string Play       => Language == GameLanguage.PL ? "GRAJ"        : "PLAY";
     public static string GoldPrefix => Language == GameLanguage.PL ? "Złoto: "     : "Gold: ";
     public static string LevelPrefix=> Language == GameLanguage.PL ? "Poz."        : "Lv.";
 
+    // ── Menu główne ───────────────────────────────────────────────────────────
+    public static string MainMenuPlay     => Language == GameLanguage.PL ? "GRAJ"       : "PLAY";
+    public static string MainMenuQuit     => Language == GameLanguage.PL ? "WYJDŹ"      : "QUIT";
+    public static string MainMenuPaint    => Language == GameLanguage.PL ? "Malarnia"   : "Paint Shop";
+    public static string MainMenuPaintBuy => Language == GameLanguage.PL
+        ? "KUP (" + GameData.PAINT_SHOP_COST + "G)" : "BUY (" + GameData.PAINT_SHOP_COST + "G)";
+    public static string MainMenuShop     => Language == GameLanguage.PL ? "SKLEP"      : "SHOP";
+    public static string MainMenuLab      => Language == GameLanguage.PL ? "Ekwipunek"         : "Equipment";
+    public static string MainMenuSettings => Language == GameLanguage.PL ? "OPCJE" : "SETTINGS";
+
     // ── Sklep ─────────────────────────────────────────────────────────────────
     public static string ShopTitle       => Language == GameLanguage.PL ? "SKLEP"             : "SHOP";
     public static string BallsSection    => Language == GameLanguage.PL ? "Kulki"             : "Balls";
     public static string UpgradesSection => Language == GameLanguage.PL ? "Ulepszenia"        : "Upgrades";
-    public static string NotEnoughGold   => Language == GameLanguage.PL ? "Za mało złota!"    : "Not enough gold!";
+    public static string NotEnoughGold   => Language == GameLanguage.PL ? "Za mało złota!"    : "Too poor!";
     public static string FullArena       => Language == GameLanguage.PL ? "Pełna arena!"      : "Arena is full!";
     public static string UpgradeArena    => Language == GameLanguage.PL ? "Ulepsz arenę!"     : "Upgrade arena!";
     public static string ArenaUpgraded   => Language == GameLanguage.PL ? "Arena ulepszona!"  : "Arena upgraded!";
@@ -32,6 +42,7 @@ public static class LocalizationManager
     public static string MaxUpgrade      => Language == GameLanguage.PL ? "Maks. poziom"      : "Max level";
     public static string PullUpgradeTitle=> Language == GameLanguage.PL ? "Ulepszenie Pulla"  : "Pull Upgrade";
     public static string PullUpgraded    => Language == GameLanguage.PL ? "Pull ulepszony!"   : "Pull upgraded!";
+    public static string PullFlavorText  => Language == GameLanguage.PL ? "Silniejszy i dłuższy pull" : "Stronger and longer pull";
 
     public static string BoughtBall(string name)
         => Language == GameLanguage.PL ? "Kupiono " + name + "!" : "Bought " + name + "!";
@@ -50,7 +61,14 @@ public static class LocalizationManager
             ? "Siła: " + force.ToString("F0") + "\nCzas: " + duration.ToString("F1") + "s\nPoziom: " + level
             : "Force: " + force.ToString("F0") + "\nDuration: " + duration.ToString("F1") + "s\nLevel: " + level;
 
-    // ── Scalnia ────────────────────────────────────────────────────────────────
+    // ── Statystyki kulek (ShopUI) ─────────────────────────────────────────────
+    public static string StatsHP        => Language == GameLanguage.PL ? "HP: "        : "HP: ";
+    public static string StatsSpeed     => Language == GameLanguage.PL ? "Szybkość: "  : "Speed: ";
+    public static string StatsRange     => Language == GameLanguage.PL ? "Zasięg: "    : "Range: ";
+    public static string StatsCooldown  => Language == GameLanguage.PL ? "Cooldown: "  : "Cooldown: ";
+    public static string StatsCollision => Language == GameLanguage.PL ? "Kolizja: "   : "Collision: ";
+
+    // ── Lab ────────────────────────────────────────────────────────────────
     public static string MergeTitle      => Language == GameLanguage.PL ? "SCALNIA"                         : "MERGE";
     public static string MergeBasic      => Language == GameLanguage.PL ? "Scal bazowe"                     : "Merge basic";
     public static string MergeUpgrade    => Language == GameLanguage.PL ? "Ulepsz scalone"                  : "Upgrade merged";
@@ -59,9 +77,17 @@ public static class LocalizationManager
     public static string NoMergeAvail    => Language == GameLanguage.PL ? "Brak kulek do ulepszenia"        : "No balls to upgrade";
     public static string NoOwnedMerged   => Language == GameLanguage.PL ? "Brak scalonych kulek"            : "No merged balls";
     public static string MergeBtn        => Language == GameLanguage.PL ? "SCAL"                            : "MERGE";
-    public static string BuyMoreBalls    => Language == GameLanguage.PL ? "Dokup kule"                      : "Buy more balls";
+    public static string BuyMoreBalls    => Language == GameLanguage.PL ? "Dokup kule"                      : "Buy more";
     public static string MergeInfoLine   => Language == GameLanguage.PL ? "Scal 5 kulek tej samej klasy i poziomu." : "Merge 5 balls of the same class and level.";
     public static string SuperPrefix     => "SUPER ";
+    public static string MasteryPrefix   => "MISTRZ ";
+    public static string Sell         => Language == GameLanguage.PL ? "Sprzedaj"  : "Sell";
+    public static string SellBtn      => Language == GameLanguage.PL ? "SPRZEDAJ"  : "SELL";
+    public static string ValueLine(int gold)
+        => Language == GameLanguage.PL ? "Wartość: " + gold + "g" : "Value: " + gold + "g";
+    public static string SoldBall(string name)
+        => Language == GameLanguage.PL ? "Sprzedano " + name + "!" : "Sold " + name + "!";
+    public static string MergeNeedArenaUpgrade => Language == GameLanguage.PL ? "Ulepsz arenę!" : "Buy arena!";
 
     public static string OwnedCount(int owned)
         => Language == GameLanguage.PL ? "Posiadasz: " + owned + "/5\n" : "Owned: " + owned + "/5\n";
@@ -77,6 +103,57 @@ public static class LocalizationManager
     public static string MergeUpgFlavor  => Language == GameLanguage.PL ? "Scal swoje kulki"          : "Merge your balls";
     public static string SuperFlavor     => Language == GameLanguage.PL ? "Super kula"                : "Super ball";
 
+    public static string MergeNeedMore(int have)
+        => Language == GameLanguage.PL ? "Masz: " + have + "/5" : "Have: " + have + "/5";
+    public static string MergeSuccessBasic(string name)
+        => Language == GameLanguage.PL
+            ? "Scalono " + name + " → " + LevelPrefix + "1!"
+            : "Merged " + name + " → " + LevelPrefix + "1!";
+    public static string MergeSuccessUp(string name, int fromLevel)
+        => Language == GameLanguage.PL
+            ? name + " " + LevelPrefix + fromLevel + " → " + LevelPrefix + (fromLevel + 1) + "!"
+            : name + " " + LevelPrefix + fromLevel + " → " + LevelPrefix + (fromLevel + 1) + "!";
+
+    // ── Malarnia ──────────────────────────────────────────────────────────────
+    public static string PaintSave      => Language == GameLanguage.PL ? "Zapisz"  : "Save";
+    public static string PaintReset     => Language == GameLanguage.PL ? "Resetuj" : "Reset";
+    public static string PaintTab1      => Language == GameLanguage.PL ? "Kolor 1" : "Color 1";
+    public static string PaintTab2      => Language == GameLanguage.PL ? "Kolor 2" : "Color 2";
+    public static string PaintTab3Color => Language == GameLanguage.PL ? "Kolor 3" : "Color 3";
+    public static string PaintStripes   => Language == GameLanguage.PL ? "Paski"   : "Stripes";
+    public static string PaintDots      => Language == GameLanguage.PL ? "Kropki"  : "Dots";
+
+    public static string GetPatternName(BallPattern p)
+    {
+        if (Language == GameLanguage.EN)
+        {
+            switch (p)
+            {
+                case BallPattern.Solid:             return "Solid";
+                case BallPattern.HorizontalStripes: return "Horizontal Stripes";
+                case BallPattern.DiagonalStripes:   return "Diagonal Stripes";
+                case BallPattern.Pepsi:             return "Pepsi";
+                case BallPattern.Quarters:          return "Quarters";
+                case BallPattern.Wedge:             return "Wedges";
+                case BallPattern.Dots:              return "Dots";
+                case BallPattern.Ring:              return "Ring";
+                default:                            return p.ToString();
+            }
+        }
+        switch (p)
+        {
+            case BallPattern.Solid:             return "Jednolity";
+            case BallPattern.HorizontalStripes: return "Poziome prążki";
+            case BallPattern.DiagonalStripes:   return "Skośne prążki";
+            case BallPattern.Pepsi:             return "Pepsi";
+            case BallPattern.Quarters:          return "Ćwiartki";
+            case BallPattern.Wedge:             return "Plasterki";
+            case BallPattern.Dots:              return "Kropki";
+            case BallPattern.Ring:              return "Pierścień";
+            default:                            return p.ToString();
+        }
+    }
+
     // ── Arena ─────────────────────────────────────────────────────────────────
     public static string AliveCount(int alive, int total)
         => Language == GameLanguage.PL ? "Żyje: " + alive + " / " + total : "Alive: " + alive + " / " + total;
@@ -91,6 +168,61 @@ public static class LocalizationManager
     public static string BlastBtn        => Language == GameLanguage.PL ? "BLAST"   : "BLAST";
     public static string PullBtn         => Language == GameLanguage.PL ? "PULL"    : "PULL";
 
+    public static string GetArenaTierName(int tierIdx)
+    {
+        if (Language == GameLanguage.EN)
+        {
+            switch (tierIdx)
+            {
+                case 0: return "Small (S)";
+                case 1: return "Medium (M)";
+                case 2: return "Large (L)";
+                case 3: return "Giant (XL)";
+                case 4: return "Your Mom (XXL)";
+                case 5: return "Krychta (XXXL)";
+                default: return "???";
+            }
+        }
+        switch (tierIdx)
+        {
+            case 0: return "Mała (S)";
+            case 1: return "Średnia (M)";
+            case 2: return "Duża (L)";
+            case 3: return "Gigant (XL)";
+            case 4: return "Twoja matka (XXL)";
+            case 5: return "Krychta (XXXL)";
+            default: return "???";
+        }
+    }
+
+    // ── Korony / Mistrzostwo ──────────────────────────────────────────────────
+    public static string MasteryTitle
+        => Language == GameLanguage.PL ? "— MISTRZOSTWO —" : "— MASTERY —";
+    public static string MasteryUnlocked
+        => Language == GameLanguage.PL ? "[ULT odblokowany!]" : "[ULT unlocked!]";
+    public static string MasteryLocked
+        => Language == GameLanguage.PL ? "Zdobadz 3 korony aby odblokowac ULT" : "Get 3 crowns to unlock ULT";
+    public static string PassiveUnlocked
+        => Language == GameLanguage.PL ? ">> Pasywka aktywna" : ">> Passive active";
+
+    public static string CrownProgress(GameData.ClassCrowns c)
+    {
+        string crown1 = c.crownDamageDealt ? "[+]" : "[ ]";
+        string crown2 = c.crownDamageTaken ? "[+]" : "[ ]";
+        string crown3 = c.crownWins        ? "[+]" : "[ ]";
+        string dmgDealt = crown1 + " " +
+            (Language == GameLanguage.PL ? "Obrazenia zadane: " : "Damage dealt: ") +
+            c.totalDamageDealt.ToString("F0") + "/" + GameData.CROWN_DMG_DEALT_THRESHOLD;
+        string dmgTaken = crown2 + " " +
+            (Language == GameLanguage.PL ? "Obrazenia otrzymane: " : "Damage taken: ") +
+            c.totalDamageTaken.ToString("F0") + "/" + GameData.CROWN_DMG_TAKEN_THRESHOLD;
+        string wins = crown3 + " " +
+            (Language == GameLanguage.PL ? "Wygrane rundy: " : "Rounds won: ") +
+            c.totalWins + "/" + GameData.CROWN_WINS_THRESHOLD;
+        string masteryLine = c.HasMastery ? MasteryUnlocked : MasteryLocked;
+        return MasteryTitle + "\n" + dmgDealt + "\n" + dmgTaken + "\n" + wins + "\n" + masteryLine;
+    }
+
     // ── Ustawienia ────────────────────────────────────────────────────────────
     public static string SettingsTitle   => Language == GameLanguage.PL ? "USTAWIENIA"      : "SETTINGS";
     public static string SFXVolumeLabel  => Language == GameLanguage.PL ? "Głośność SFX"    : "SFX Volume";
@@ -101,6 +233,60 @@ public static class LocalizationManager
     public static string QualityMed       => Language == GameLanguage.PL ? "Średnia"         : "Medium";
     public static string QualityHigh      => Language == GameLanguage.PL ? "Wysoka"          : "High";
     public static string ResolutionLabel  => Language == GameLanguage.PL ? "Rozdzielczość"   : "Resolution";
+
+    // ── LogoScreen disclaimer ─────────────────────────────────────────────────
+    public static string DisclaimerText
+        => Language == GameLanguage.PL
+            ? "Postęp jest zapisywany automatycznie."
+            : "Progress is saved automatically.";
+
+    // ── Nazwy klas ────────────────────────────────────────────────────────────
+    public static string GetClassName(BallClass cls)
+    {
+        if (Language == GameLanguage.EN)
+        {
+            switch (cls)
+            {
+                case BallClass.Warrior:      return "Warrior";
+                case BallClass.Mage:         return "Mage";
+                case BallClass.Archer:       return "Archer";
+                case BallClass.Rogue:        return "Rogue";
+                case BallClass.Paladin:      return "Paladin";
+                case BallClass.Berserker:    return "Berserker";
+                case BallClass.Necromancer:  return "Necromancer";
+                case BallClass.Elementalist: return "Elementalist";
+                case BallClass.Priest:       return "Priest";
+                case BallClass.Titan:        return "Titan";
+                case BallClass.Druid:        return "Druid";
+                case BallClass.Technician:   return "Technician";
+                case BallClass.Glitch:       return "Glitch";
+                case BallClass.Psychic:      return "Psychic";
+                case BallClass.Nerd:         return "Nerd";
+                case BallClass.Mariachi:     return "Mariachi";
+                default:                     return cls.ToString();
+            }
+        }
+        switch (cls)
+        {
+            case BallClass.Warrior:      return "Wojownik";
+            case BallClass.Mage:         return "Mag";
+            case BallClass.Archer:       return "Łucznik";
+            case BallClass.Rogue:        return "Łotrzyk";
+            case BallClass.Paladin:      return "Paladyn";
+            case BallClass.Berserker:    return "Berserker";
+            case BallClass.Necromancer:  return "Nekromanta";
+            case BallClass.Elementalist: return "Elementalista";
+            case BallClass.Priest:       return "Kapłan";
+            case BallClass.Titan:        return "Tytan";
+            case BallClass.Druid:        return "Druid";
+            case BallClass.Technician:   return "Technik";
+            case BallClass.Glitch:       return "Glitch";
+            case BallClass.Psychic:      return "Psychic";
+            case BallClass.Nerd:         return "Nerd";
+            case BallClass.Mariachi:     return "Mariachi";
+            default:                     return cls.ToString();
+        }
+    }
 
     // ── Flavor texty ─────────────────────────────────────────────────────────
     public static string GetFlavor(BallClass cls)

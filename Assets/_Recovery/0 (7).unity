@@ -623,10 +623,8 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 'WARNING!!! This game saves data automatically, but does not move between
-    builds on itself!
-
-'
+  m_text: "UWAGA!!! Gra nie zapisuje danych po jej wy\u0142\u0105czeniu, szykuj si\u0119
+    na powt\xF3rk\u0119 z rozrywki z ka\u017Cdym restartem aplikacji!!"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}

@@ -1,7 +1,7 @@
 // AudioController.cs
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 public class AudioController : MonoBehaviour
 {
@@ -20,7 +20,7 @@ public class AudioController : MonoBehaviour
     public AudioClip roundStart;
     public AudioClip shopBuy;
     public AudioClip titanQuake;
-    public AudioClip accelerationWarning;  // wskaźnik przyspieszenia kulek
+    public AudioClip accelerationWarning;
 
     [Header("Muzyka")]
     public AudioClip musicArena;
@@ -41,6 +41,12 @@ public class AudioController : MonoBehaviour
     [Range(0f, 2f)] public float normTitanQuake       = 1.0f;
     [Range(0f, 2f)] public float normAccelWarning     = 1.0f;
 
+    [Header("Throttling dźwięków")]
+    [Tooltip("Minimalny czas (s) między kolejnymi odtworzeniami tego samego klipu")]
+    public float defaultCooldown     = 0.05f;
+    [Tooltip("Maks. liczba dźwięków SFX odtworzonych w jednej klatce")]
+    public int   maxSoundsPerFrame   = 6;
+
     [Header("Głośność master")]
     [Range(0f, 1f)] public float sfxVolume   = 1f;
     [Range(0f, 1f)] public float musicVolume = 0.4f;
@@ -48,7 +54,12 @@ public class AudioController : MonoBehaviour
     private AudioSource _sfx;
     private AudioSource _sfxAccel;
     private AudioSource _music;
-    private int _musicIndex = 0;
+    private int         _musicIndex = 0;
+
+    // Throttling
+    private readonly Dictionary<AudioClip, float> _lastPlayTime = new Dictionary<AudioClip, float>();
+    private int   _frameSoundCount;
+    private int   _lastThrottleFrame = -1;
 
     private void Awake()
     {
@@ -69,7 +80,6 @@ public class AudioController : MonoBehaviour
 
     private void Start()
     {
-        // Załaduj głośności z GameData jeśli dostępne
         if (GameData.Instance != null)
         {
             sfxVolume   = GameData.Instance.sfxVolume;
@@ -85,7 +95,7 @@ public class AudioController : MonoBehaviour
             StartCoroutine(MusicLoop());
     }
 
-    // ── Pętla muzyki naprzemiennej ───────────────────────────────────────────
+    // ── Pętla muzyki ─────────────────────────────────────────────────────────
     private IEnumerator MusicLoop()
     {
         AudioClip[] tracks = musicArena2 != null
@@ -95,15 +105,15 @@ public class AudioController : MonoBehaviour
         while (true)
         {
             AudioClip clip = tracks[_musicIndex % tracks.Length];
-            _music.clip   = clip;
-            _music.volume = musicVolume;
+            _music.clip    = clip;
+            _music.volume  = musicVolume;
             _music.Play();
             yield return new WaitUntil(() => !_music.isPlaying);
             _musicIndex++;
         }
     }
 
-    // ── Publiczne settery głośności ───────────────────────────────────────────
+    // ── Głośność ─────────────────────────────────────────────────────────────
     public void SetSFXVolume(float v)
     {
         sfxVolume = Mathf.Clamp01(v);
@@ -117,17 +127,18 @@ public class AudioController : MonoBehaviour
         if (GameData.Instance != null) GameData.Instance.musicVolume = musicVolume;
     }
 
-    // ── SFX publiczne ────────────────────────────────────────────────────────
-    public void PlayBallCollision()       => Play(ballCollision,        normBallCollision);
-    public void PlayButtonClick()         => Play(buttonClick,          normButtonClick);
-    public void PlayMeleeHit()            => Play(meleeHit,             normMeleeHit);
-    public void PlayProjectileFire()      => Play(projectileFire,       normProjectileFire);
-    public void PlayProjectileHit()       => Play(projectileHit,        normProjectileHit);
-    public void PlayMariachiBullet()      => Play(mariachiBullet,       normMariachiBullet);
-    public void PlayRogueTeleport()       => Play(rogueTeleport,        normRogueTeleport);
-    public void PlayTitanQuake()          => Play(titanQuake,           normTitanQuake);
-    public void PlayShopBuy()             => Play(shopBuy,              normShopBuy);
-    public void PlayRoundStart()          => Play(roundStart,           normRoundStart);
+    // ── Publiczne play ────────────────────────────────────────────────────────
+    public void PlayBallCollision()  => Play(ballCollision,   normBallCollision);
+    public void PlayButtonClick()    => Play(buttonClick,     normButtonClick,  0f);   // UI – bez cooldownu
+    public void PlayMeleeHit()       => Play(meleeHit,        normMeleeHit);
+    public void PlayProjectileFire() => Play(projectileFire,  normProjectileFire);
+    public void PlayProjectileHit()  => Play(projectileHit,   normProjectileHit);
+    public void PlayMariachiBullet() => Play(mariachiBullet,   normMariachiBullet);
+    public void PlayRogueTeleport()  => Play(rogueTeleport,   normRogueTeleport);
+    public void PlayTitanQuake()     => Play(titanQuake,      normTitanQuake,   0.3f); // rzadki dźwięk – dłuższy cooldown
+    public void PlayShopBuy()        => Play(shopBuy,         normShopBuy,      0f);
+    public void PlayRoundStart()     => Play(roundStart,      normRoundStart,   0f);
+
     public void PlayAccelerationWarning()
     {
         if (accelerationWarning == null || _sfxAccel == null) return;
@@ -136,9 +147,34 @@ public class AudioController : MonoBehaviour
 
     public void StopAccelerationWarning() => _sfxAccel?.Stop();
 
-    void Play(AudioClip clip, float normMultiplier = 1f)
+    // ── Wewnętrzny throttled Play ─────────────────────────────────────────────
+    /// <param name="cooldown">Minimalny czas między odtworzeniami. -1 = użyj defaultCooldown.</param>
+    void Play(AudioClip clip, float normMultiplier = 1f, float cooldown = -1f)
     {
         if (clip == null || _sfx == null) return;
+
+        float cd = cooldown < 0f ? defaultCooldown : cooldown;
+
+        // Cooldown per klip
+        if (cd > 0f)
+        {
+            float lastTime;
+            if (_lastPlayTime.TryGetValue(clip, out lastTime))
+            {
+                if (Time.unscaledTime - lastTime < cd) return;
+            }
+        }
+
+        // Budżet per klatka (tylko dla dźwięków z cooldownem – tj. dźwięków walki)
+        if (cd > 0f)
+        {
+            int frame = Time.frameCount;
+            if (frame != _lastThrottleFrame) { _frameSoundCount = 0; _lastThrottleFrame = frame; }
+            if (_frameSoundCount >= maxSoundsPerFrame) return;
+            _frameSoundCount++;
+        }
+
+        _lastPlayTime[clip] = Time.unscaledTime;
         _sfx.PlayOneShot(clip, sfxVolume * normMultiplier);
     }
 }

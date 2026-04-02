@@ -9,19 +9,26 @@ public class Projectile : MonoBehaviour
     private ProjectileType pType;
     private float          homingStrength;
     private Rigidbody2D    rb;
+    private bool           _isHoly;
+    private bool           _piercing;
 
     /// <summary>Opcjonalny callback wywoływany gdy pocisk trafi w cel (przed Destroy).</summary>
     public System.Action OnHitCallback;
+    /// <summary>Callback z trafioną kulką (przed Destroy).</summary>
+    public System.Action<BallController> OnHitBallCallback;
 
     public void Initialize(BallController owner, BallController target,
                            Vector2 vel, float dmg,
-                           ProjectileType type, float homing, float lifetime)
+                           ProjectileType type, float homing, float lifetime,
+                           bool isHoly = false, bool piercing = false)
     {
         this.owner      = owner;
         homingTarget    = target;
         damage          = dmg;
         pType           = type;
         homingStrength  = homing;
+        _isHoly         = isHoly;
+        _piercing       = piercing;
 
         rb              = GetComponent<Rigidbody2D>();
         rb.gravityScale = 0f;
@@ -49,12 +56,17 @@ public class Projectile : MonoBehaviour
         var ball = other.GetComponent<BallController>();
         if (ball == null || ball == owner || !ball.IsAlive) return;
 
-        ball.TakeDamage(damage, owner);
+        if (_isHoly)
+            ball.TakeHolyDamage(damage, owner);
+        else
+            ball.TakeDamage(damage, owner);
+
         if (pType == ProjectileType.PoisonBolt)
             ball.ApplyPoison(6f, 3f, owner);
 
         AudioController.Instance?.PlayProjectileHit();
+        OnHitBallCallback?.Invoke(ball);
         OnHitCallback?.Invoke();
-        Destroy(gameObject);
+        if (!_piercing) Destroy(gameObject);
     }
 }

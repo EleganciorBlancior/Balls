@@ -19,10 +19,15 @@ public class BallController : MonoBehaviour
     public event Action<float, BallController> OnDamageTaken;
 
     // ── Stan ──────────────────────────────────────────────────────────────────
+    public  int            MergeLevel  { get; private set; }
     private float          currentHP;
     private float          maxHP;
     private float          poisonDPS, poisonLeft;
     private BallController poisonSource;
+    private float          bleedDPS,   bleedLeft;
+    private BallController bleedSource;
+    private float          shieldHP    = 0f;
+    private float          _totalDmgReduced = 0f;
     private float          weakenMult  = 1f;
     private float          weakenLeft  = 0f;
     public  bool           invincible  = false;
@@ -68,9 +73,10 @@ public class BallController : MonoBehaviour
     /// </summary>
     public void Initialize(ClassConfig cfg, float scaleMult = 1f,
                            float statMult = 1f, int goldMult = 1,
-                           string displayName = null)
+                           string displayName = null, int mergeLevel = 0)
     {
         Config      = cfg;
+        MergeLevel  = mergeLevel;
         maxHP       = cfg.maxHP * statMult;
         currentHP   = maxHP;
         baseColor   = cfg.color;
@@ -180,6 +186,9 @@ public class BallController : MonoBehaviour
         }
         weapon.Initialize(this);
         weapon.StatMultiplier = statMult;
+        bool hasPassive = MergeLevel >= 5;
+        bool hasMastery = GameData.Instance?.HasMastery(cls) ?? false;
+        weapon.SetMasteryFlags(hasPassive, hasMastery);
     }
 
     public void SetInvincibleGlow(bool on) => invincible = on;
@@ -187,7 +196,7 @@ public class BallController : MonoBehaviour
     private void Update()
     {
         if (!IsAlive) return;
-        HandlePoison(); HandleWeaken(); HandleSlowness(); HandleFlash(); HandleGlow();
+        HandlePoison(); HandleBleed(); HandleWeaken(); HandleSlowness(); HandleFlash(); HandleGlow();
         HandleAI(); ClampSpeed();
         if (_psychicRepelTimer > 0f) _psychicRepelTimer -= Time.deltaTime;
         if (healthBar != null) healthBar.UpdateBar(currentHP, transform.position);
@@ -249,6 +258,27 @@ public class BallController : MonoBehaviour
         FlashColor(Color.red, 0.12f);
         HitParticles.Spawn(transform.position, baseColor);
         if (healthBar != null) healthBar.UpdateBar(currentHP, transform.position);
+        if (GameData.Instance != null && amount > 0f)
+        {
+            if (source != null) GameData.Instance.RecordDamageDealt(source.Config.ballClass, amount);
+            GameData.Instance.RecordDamageTaken(Config.ballClass, amount);
+        }
+        OnDamageTaken?.Invoke(amount, source);
+        if (currentHP <= 0f) Die(source);
+    }
+
+    public void TakeHolyDamage(float amount, BallController source)
+    {
+        if (!IsAlive || invincible) return;
+        currentHP = Mathf.Max(currentHP - amount, 0f);
+        FlashColor(new Color(1f, 1f, 0.3f), 0.15f);
+        HitParticles.Spawn(transform.position, baseColor);
+        if (healthBar != null) healthBar.UpdateBar(currentHP, transform.position);
+        if (GameData.Instance != null && amount > 0f)
+        {
+            if (source != null) GameData.Instance.RecordDamageDealt(source.Config.ballClass, amount);
+            GameData.Instance.RecordDamageTaken(Config.ballClass, amount);
+        }
         OnDamageTaken?.Invoke(amount, source);
         if (currentHP <= 0f) Die(source);
     }
@@ -263,11 +293,19 @@ public class BallController : MonoBehaviour
     {
         if (invincible) return;
         float modified = OnTakePhysicalDamage != null ? OnTakePhysicalDamage(amount) : amount;
-        TakeDamage(modified, source);
+        _totalDmgReduced += (amount - modified);
+        if (shieldHP > 0f)
+        {
+            float blocked = Mathf.Min(shieldHP, modified);
+            shieldHP  -= blocked;
+            modified  -= blocked;
+        }
+        if (modified > 0f) TakeDamage(modified, source);
     }
 
     public void Heal(float amount)
     {
+        if (bleedLeft > 0f) return;  // bleed blocks healing
         currentHP = Mathf.Min(currentHP + amount, maxHP);
         FlashColor(new Color(0.2f, 1f, 0.4f), 0.15f);
         if (healthBar != null) healthBar.UpdateBar(currentHP, transform.position);
@@ -286,6 +324,23 @@ public class BallController : MonoBehaviour
         poisonDPS    = Mathf.Max(poisonDPS, dps);
         poisonLeft   = Mathf.Max(poisonLeft, duration);
         poisonSource = source;
+    }
+
+    public void ApplyBleed(float dps, float duration, BallController source)
+    {
+        if (invincible) return;
+        bleedDPS    = Mathf.Max(bleedDPS, dps);
+        bleedLeft   = Mathf.Max(bleedLeft, duration);
+        bleedSource = source;
+    }
+
+    public void AddShieldHP(float amount) => shieldHP += amount;
+
+    public float GetAndConsumeReducedDmg()
+    {
+        float v = _totalDmgReduced;
+        _totalDmgReduced = 0f;
+        return v;
     }
 
     public void ApplyKnockback(Vector3 dir, float force)
@@ -314,6 +369,15 @@ public class BallController : MonoBehaviour
         poisonLeft -= Time.deltaTime;
         TakeDamage(poisonDPS * Time.deltaTime, poisonSource);
         sr.color = Color.Lerp(sr.color, new Color(0.4f, 1f, 0.2f), 0.15f);
+    }
+
+    void HandleBleed()
+    {
+        if (bleedLeft <= 0f) return;
+        if (invincible) { bleedLeft -= Time.deltaTime; return; }
+        bleedLeft -= Time.deltaTime;
+        TakeDamage(bleedDPS * Time.deltaTime, bleedSource);
+        sr.color = Color.Lerp(sr.color, new Color(1f, 0.15f, 0.1f), 0.18f);
     }
 
     void HandleWeaken()
@@ -349,7 +413,8 @@ public class BallController : MonoBehaviour
         // Daj broni szansę na zablokowanie śmierci (np. respawn Mariachi)
         if (weapon != null && weapon.OnPreDeath())
         {
-            currentHP = maxHP * 0.5f;
+            currentHP = maxHP * weapon.RespawnHPFraction;
+            bleedLeft = 0f;
             if (healthBar != null) healthBar.UpdateBar(currentHP, transform.position);
             return;
         }
@@ -397,7 +462,7 @@ public class BallController : MonoBehaviour
             flashTimer -= Time.deltaTime;
             sr.color = flashTimer > 0f ? Color.Lerp(resetColor, flashColor, flashTimer * 6f) : resetColor;
         }
-        else if (poisonLeft <= 0f && weakenLeft <= 0f)
+        else if (poisonLeft <= 0f && bleedLeft <= 0f && weakenLeft <= 0f)
             sr.color = Color.Lerp(sr.color, resetColor, Time.deltaTime * 5f);
     }
 

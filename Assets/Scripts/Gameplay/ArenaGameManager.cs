@@ -40,6 +40,12 @@ public class ArenaGameManager : MonoBehaviour
     public GameObject restartPanel;
     public GameObject shopButton;
 
+    [Header("Teksty przycisków endpanelu (opcjonalne)")]
+    public TMP_Text restartButtonLabel;
+    public TMP_Text shopButtonLabel;
+    public TMP_Text settingsButtonLabel;
+    public TMP_Text quitButtonLabel;
+
     [Header("Przyciski mechanik (opcjonalne – do odliczania)")]
     public Button wallBlastButton;
     public Button centerPullButton;
@@ -85,7 +91,14 @@ public class ArenaGameManager : MonoBehaviour
         if (restartPanel != null) restartPanel.SetActive(false);
         if (shopButton   != null) shopButton.SetActive(false);
         if (winnerText   != null) winnerText.gameObject.SetActive(false);
-        if (tierText     != null) tierText.text = LocalizationManager.ArenaTierLabel(tier.tierName);
+        if (tierText     != null) tierText.text = LocalizationManager.ArenaTierLabel(
+            LocalizationManager.GetArenaTierName(GameData.Instance.arenaTierIndex));
+
+        // Lokalizacja przycisków endpanelu
+        if (restartButtonLabel  != null) restartButtonLabel.text  = LocalizationManager.Play;
+        if (shopButtonLabel     != null) shopButtonLabel.text     = LocalizationManager.MainMenuShop;
+        if (settingsButtonLabel != null) settingsButtonLabel.text = LocalizationManager.MainMenuSettings;
+        if (quitButtonLabel     != null) quitButtonLabel.text     = LocalizationManager.MainMenuQuit;
 
         if (centerPullButton != null)
         {
@@ -203,7 +216,7 @@ public class ArenaGameManager : MonoBehaviour
         go.AddComponent<SpriteRenderer>();
 
         var ball = go.AddComponent<BallController>();
-        ball.Initialize(cfg, ballScaleMult, statMult, goldMult);
+        ball.Initialize(cfg, ballScaleMult, statMult, goldMult, null, mergeLevel);
         ball.BallNumber = number;
         ball.OnDeath += HandleDeath;
         balls.Add(ball);
@@ -260,7 +273,7 @@ public class ArenaGameManager : MonoBehaviour
         if (winnerText != null)
         {
             winnerText.text = survivor != null
-                ? LocalizationManager.Winner(survivor.Config.className)
+                ? LocalizationManager.Winner(LocalizationManager.GetClassName(survivor.Config.ballClass))
                 : LocalizationManager.Draw;
             winnerText.gameObject.SetActive(true);
         }
@@ -272,7 +285,11 @@ public class ArenaGameManager : MonoBehaviour
         {
             survivor.Rb.linearVelocity = Vector2.zero;
             survivor.Rb.constraints    = RigidbodyConstraints2D.FreezeAll;
+            if (GameData.Instance != null)
+                GameData.Instance.RecordWin(survivor.Config.ballClass);
         }
+
+        GameData.Instance?.Save();
 
         ArenaEvents.FireGameEnd();
         StartCoroutine(FreezeAfterDelay(0.7f));
@@ -423,7 +440,15 @@ public class ArenaGameManager : MonoBehaviour
     // ── Ustawienia z areny ────────────────────────────────────────────────────
     public void OpenSettings()
     {
-        SettingsPanel.Open();
+        SettingsPanel.Open(() =>
+        {
+            if (restartButtonLabel  != null) restartButtonLabel.text  = LocalizationManager.Play;
+            if (shopButtonLabel     != null) shopButtonLabel.text     = LocalizationManager.MainMenuShop;
+            if (settingsButtonLabel != null) settingsButtonLabel.text = LocalizationManager.MainMenuSettings;
+            if (quitButtonLabel     != null) quitButtonLabel.text     = LocalizationManager.MainMenuQuit;
+            if (tierText            != null) tierText.text            = LocalizationManager.ArenaTierLabel(
+                LocalizationManager.GetArenaTierName(GameData.Instance.arenaTierIndex));
+        });
     }
 
     // ── Nawigacja ─────────────────────────────────────────────────────────────

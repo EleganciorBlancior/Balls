@@ -1,4 +1,4 @@
-// MergeUI.cs (v3) – akordeonowa lista (lewo) + panel szczegółów (prawo)
+// MergeUI.cs (v4) – akordeonowa lista (lewo) + panel szczegółów (prawo)
 //
 // UKŁAD SCENY (ustawić w Unity Editor):
 //
@@ -25,6 +25,7 @@
 //              └── ActionLabel (TMP)
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using TMPro;
@@ -64,6 +65,19 @@ public class MergeUI : MonoBehaviour
     public Button     actionButton;
     public TMP_Text   actionLabel;
 
+    // ── Przyciski nawigacyjne (opcjonalne) ────────────────────────────────
+    [Header("Przyciski nawigacyjne (opcjonalne)")]
+    public TMP_Text shopButtonLabel;
+    public TMP_Text backButtonLabel;
+
+    [Header("Przycisk sprzedaży (opcjonalne)")]
+    public Button   sellButton;
+    public TMP_Text sellButtonLabel;
+
+    [Header("Mistrzostwo (opcjonalne)")]
+    public TMP_Text masteryText;
+
+
     // ── Klasy ─────────────────────────────────────────────────────────────
     [Header("Klasy (16 assetów)")]
     public List<ClassConfig> allClassConfigs;
@@ -75,9 +89,23 @@ public class MergeUI : MonoBehaviour
     private float _bobTimer;
 
     private enum SelType { None, Basic, Upgrade, OwnedInfo }
+    private int         _selOwnedLevel;
     private SelType     _selType      = SelType.None;
     private ClassConfig _selCfg;
     private int         _selFromLevel;
+    private bool        _selCanMerge;
+    private bool        _selNeedsTier;
+
+    // Hold-to-merge
+    const float HOLD_INITIAL_DELAY  = 0.5f;
+    const float HOLD_INTERVAL_START = 0.15f;
+    const float HOLD_INTERVAL_MIN   = 0.002f;
+    const float HOLD_RAMP_TIME      = 3f;
+
+    private bool  _actionHeld;
+    private float _holdTimer;
+    private float _holdHeld;
+    private bool  _holdFired;
 
     // ── Unity lifecycle ───────────────────────────────────────────────────
     private void Start()
@@ -86,12 +114,71 @@ public class MergeUI : MonoBehaviour
         {
             var go = new GameObject("GameData"); go.AddComponent<GameData>();
         }
+
+        // Przyciski nawigacyjne
+        if (shopButtonLabel != null) shopButtonLabel.text = LocalizationManager.MainMenuShop;
+        if (backButtonLabel != null) backButtonLabel.text = LocalizationManager.Back;
+        if (sellButtonLabel != null) sellButtonLabel.text = LocalizationManager.Sell;
+        if (sellButton      != null)
+        {
+            sellButton.onClick.AddListener(TrySellMerged);
+            sellButton.gameObject.SetActive(false);
+        }
+
         RefreshTopBar();
+
+        // Przywróć stan akordeonów
+        _basicOpen   = GameData.Instance.mergeBasicOpen;
+        _upgradeOpen = GameData.Instance.mergeUpgradeOpen;
+        _ownedOpen   = GameData.Instance.mergeOwnedOpen;
+
         BuildLists();
-        ShowEmpty();
-        if (basicToggleLabel   != null) basicToggleLabel.text   = LocalizationManager.MergeBasic   + " ▼";
-        if (upgradeToggleLabel != null) upgradeToggleLabel.text = LocalizationManager.MergeUpgrade + " ▼";
-        if (ownedToggleLabel   != null) ownedToggleLabel.text   = LocalizationManager.OwnedMerged  + " ▼";
+
+        if (basicToggleLabel   != null)
+            basicToggleLabel.text   = LocalizationManager.MergeBasic   + " " + (_basicOpen   ? "▲" : "▼");
+        if (upgradeToggleLabel != null)
+            upgradeToggleLabel.text = LocalizationManager.MergeUpgrade + " " + (_upgradeOpen ? "▲" : "▼");
+        if (ownedToggleLabel   != null)
+            ownedToggleLabel.text   = LocalizationManager.OwnedMerged  + " " + (_ownedOpen   ? "▲" : "▼");
+
+        // Przywróć poprzednią selekcję
+        RestoreSelection();
+        SetupHoldToMerge();
+    }
+
+    void RestoreSelection()
+    {
+        switch (GameData.Instance.mergeSelType)
+        {
+            case 1:
+                var cfg = GetCfg(GameData.Instance.mergeSelClass);
+                if (cfg != null) SelectBasic(cfg);
+                else ShowEmpty();
+                break;
+            case 2:
+                var cfg2 = GetCfg(GameData.Instance.mergeSelClass);
+                if (cfg2 != null) SelectUpgrade(cfg2, GameData.Instance.mergeSelFromLevel);
+                else ShowEmpty();
+                break;
+            default:
+                ShowEmpty();
+                break;
+        }
+    }
+
+    void SetupHoldToMerge()
+    {
+        if (actionButton == null) return;
+        var trigger = actionButton.gameObject.GetComponent<EventTrigger>()
+                   ?? actionButton.gameObject.AddComponent<EventTrigger>();
+
+        var down = new EventTrigger.Entry { eventID = EventTriggerType.PointerDown };
+        down.callback.AddListener(_ => { _actionHeld = true; _holdTimer = 0f; _holdHeld = 0f; _holdFired = false; });
+        trigger.triggers.Add(down);
+
+        var up = new EventTrigger.Entry { eventID = EventTriggerType.PointerUp };
+        up.callback.AddListener(_ => { _actionHeld = false; _holdTimer = 0f; _holdHeld = 0f; _holdFired = false; });
+        trigger.triggers.Add(up);
     }
 
     private void Update()
@@ -102,6 +189,34 @@ public class MergeUI : MonoBehaviour
             titleRect.anchoredPosition = new Vector2(
                 titleRect.anchoredPosition.x,
                 Mathf.Sin(_bobTimer * 1.5f) * 16f - 55f);
+        }
+
+        if (_actionHeld && UnityEngine.InputSystem.Mouse.current != null
+            && UnityEngine.InputSystem.Mouse.current.leftButton.wasReleasedThisFrame)
+        {
+            _actionHeld = false; _holdTimer = 0f; _holdHeld = 0f; _holdFired = false;
+        }
+
+        if (_actionHeld && actionButton != null && actionButton.interactable && _selType != SelType.None)
+        {
+            _holdTimer += Time.deltaTime;
+            _holdHeld  += Time.deltaTime;
+
+            if (!_holdFired && _holdTimer >= HOLD_INITIAL_DELAY)
+            {
+                _holdFired = true; _holdTimer = 0f;
+                OnActionClicked();
+            }
+            else if (_holdFired)
+            {
+                float rampProgress = Mathf.Clamp01((_holdHeld - HOLD_INITIAL_DELAY) / HOLD_RAMP_TIME);
+                float interval = Mathf.Lerp(HOLD_INTERVAL_START, HOLD_INTERVAL_MIN, rampProgress);
+                if (_holdTimer >= interval)
+                {
+                    _holdTimer = 0f;
+                    OnActionClicked();
+                }
+            }
         }
     }
 
@@ -119,7 +234,6 @@ public class MergeUI : MonoBehaviour
         ClearContainer(basicContent);
 
         bool any = false;
-        // Iterujemy w kolejności allClassConfigs (ta sama co sklep)
         foreach (var cfg in allClassConfigs)
         {
             if (cfg == null) continue;
@@ -127,13 +241,14 @@ public class MergeUI : MonoBehaviour
             if (owned == 0) continue;
             any = true;
 
-            bool canMerge = owned >= 5;
+            bool canMerge = GameData.Instance.CanMergeBasic(cfg.ballClass);
+            bool hasTier  = GameData.Instance.HasMergeTier(1);
             string badge  = owned + "/5";
             Color dotCol  = canMerge ? new Color(1f, 0.85f, 0.1f) : cfg.color;
 
             var row = SpawnRow(basicContent);
             if (row == null) continue;
-            row.Setup(dotCol, cfg.className, badge, readyToMerge: canMerge);
+            row.Setup(dotCol, LocalizationManager.GetClassName(cfg.ballClass), badge, readyToMerge: canMerge);
 
             var capturedCfg = cfg;
             if (row.btn != null)
@@ -155,7 +270,6 @@ public class MergeUI : MonoBehaviour
         if (upgradeContent == null || listRowPrefab == null) return;
         ClearContainer(upgradeContent);
 
-        // Grupuj po (klasa, poziom)
         var groups = new Dictionary<(BallClass, int), int>();
         foreach (var m in GameData.Instance.mergedBalls)
         {
@@ -164,11 +278,9 @@ public class MergeUI : MonoBehaviour
         }
 
         bool any = false;
-        // Iterujemy w kolejności allClassConfigs, a dla każdej klasy rosnąco po poziomie
         foreach (var cfg in allClassConfigs)
         {
             if (cfg == null) continue;
-            // Zbierz poziomy tej klasy i posortuj
             var levels = new List<int>();
             foreach (var key in groups.Keys)
                 if (key.Item1 == cfg.ballClass) levels.Add(key.Item2);
@@ -176,16 +288,18 @@ public class MergeUI : MonoBehaviour
 
             foreach (int level in levels)
             {
+                if (level >= 5) continue;  // Lv5 = max, nie można dalej scalać
+
                 int count = groups[(cfg.ballClass, level)];
                 any = true;
 
-                bool canMerge = count >= 5;
+                bool canMerge = GameData.Instance.CanMergeUp(cfg.ballClass, level);
                 Color dotCol = canMerge ? new Color(1f, 0.85f, 0.1f) : new Color(0.8f, 0.6f, 0.1f);
 
                 var row = SpawnRow(upgradeContent);
                 if (row == null) continue;
                 row.Setup(dotCol,
-                          cfg.className + " " + LocalizationManager.LevelPrefix + level,
+                          LocalizationManager.GetClassName(cfg.ballClass) + " " + LocalizationManager.LevelPrefix + level,
                           count + "/5",
                           readyToMerge: canMerge);
 
@@ -211,29 +325,48 @@ public class MergeUI : MonoBehaviour
         if (ownedContent == null || listRowPrefab == null) return;
         ClearContainer(ownedContent);
 
-        if (GameData.Instance.mergedBalls.Count == 0)
+        var groups = new Dictionary<(BallClass, int), int>();
+        foreach (var m in GameData.Instance.mergedBalls)
         {
-            var empty = SpawnRow(ownedContent);
-            empty.Setup(Color.gray, LocalizationManager.NoOwnedMerged, "–", false);
+            var key = (m.ballClass, m.mergeLevel);
+            groups[key] = groups.ContainsKey(key) ? groups[key] + 1 : 1;
         }
-        else
+
+        bool any = false;
+        foreach (var cfg in allClassConfigs)
         {
-            foreach (var merged in GameData.Instance.mergedBalls)
+            if (cfg == null) continue;
+            var levels = new List<int>();
+            foreach (var key in groups.Keys)
+                if (key.Item1 == cfg.ballClass) levels.Add(key.Item2);
+            levels.Sort();
+
+            foreach (int level in levels)
             {
-                var cfg = GetCfg(merged.ballClass);
-                if (cfg == null) continue;
+                any = true;
+                int count = groups[(cfg.ballClass, level)];
+                bool isMastery = level == 5 && GameData.Instance.HasMastery(cfg.ballClass);
+                string prefix  = isMastery ? LocalizationManager.MasteryPrefix : LocalizationManager.SuperPrefix;
+                Color rowColor = isMastery ? new Color(0.4f, 1f, 0.8f) : new Color(1f, 0.85f, 0.1f);
 
                 var row = SpawnRow(ownedContent);
                 if (row == null) continue;
-                row.Setup(new Color(1f, 0.85f, 0.1f),
-                          LocalizationManager.SuperPrefix + cfg.className,
-                          LocalizationManager.LevelPrefix + merged.mergeLevel);
+                row.Setup(rowColor,
+                          prefix + LocalizationManager.GetClassName(cfg.ballClass),
+                          LocalizationManager.LevelPrefix + level + "  x" + count);
 
-                var capCfg    = cfg;
-                var capMerged = merged;
+                var capCfg   = cfg;
+                int capLevel = level;
+                int capCount = count;
                 if (row.btn != null)
-                    row.btn.onClick.AddListener(() => SelectOwned(capCfg, capMerged));
+                    row.btn.onClick.AddListener(() => SelectOwnedGroup(capCfg, capLevel, capCount));
             }
+        }
+
+        if (!any)
+        {
+            var empty = SpawnRow(ownedContent);
+            empty.Setup(Color.gray, LocalizationManager.NoOwnedMerged, "–", false);
         }
 
         if (ownedContent != null)
@@ -257,6 +390,7 @@ public class MergeUI : MonoBehaviour
     public void ToggleBasic()
     {
         _basicOpen = !_basicOpen;
+        GameData.Instance.mergeBasicOpen = _basicOpen;
         if (basicContent != null) basicContent.gameObject.SetActive(_basicOpen);
         if (basicToggleLabel != null)
             basicToggleLabel.text = LocalizationManager.MergeBasic + " " + (_basicOpen ? "▲" : "▼");
@@ -265,6 +399,7 @@ public class MergeUI : MonoBehaviour
     public void ToggleUpgrade()
     {
         _upgradeOpen = !_upgradeOpen;
+        GameData.Instance.mergeUpgradeOpen = _upgradeOpen;
         if (upgradeContent != null) upgradeContent.gameObject.SetActive(_upgradeOpen);
         if (upgradeToggleLabel != null)
             upgradeToggleLabel.text = LocalizationManager.MergeUpgrade + " " + (_upgradeOpen ? "▲" : "▼");
@@ -273,6 +408,7 @@ public class MergeUI : MonoBehaviour
     public void ToggleOwned()
     {
         _ownedOpen = !_ownedOpen;
+        GameData.Instance.mergeOwnedOpen = _ownedOpen;
         if (ownedContent != null) ownedContent.gameObject.SetActive(_ownedOpen);
         if (ownedToggleLabel != null)
             ownedToggleLabel.text = LocalizationManager.OwnedMerged + " " + (_ownedOpen ? "▲" : "▼");
@@ -283,18 +419,56 @@ public class MergeUI : MonoBehaviour
     {
         _selType = SelType.Basic;
         _selCfg  = cfg;
+        GameData.Instance.mergeSelType  = 1;
+        GameData.Instance.mergeSelClass = cfg.ballClass;
 
-        int owned     = GameData.Instance.CountBasicBalls(cfg.ballClass);
-        bool canMerge = owned >= 5;
+        int owned      = GameData.Instance.CountBasicBalls(cfg.ballClass);
+        bool hasTier   = GameData.Instance.HasMergeTier(1);
+        bool canMerge  = GameData.Instance.CanMergeBasic(cfg.ballClass);
+        _selCanMerge   = canMerge;
+        _selNeedsTier  = !hasTier;
+
+        string btnText;
+        bool btnEnabled;
+        if (!hasTier)
+        {
+            btnText    = LocalizationManager.MergeNeedArenaUpgrade;
+            btnEnabled = false;
+        }
+        else if (canMerge)
+        {
+            btnText    = LocalizationManager.MergeBtn;
+            btnEnabled = true;
+        }
+        else
+        {
+            btnText    = LocalizationManager.BuyMoreBalls;
+            btnEnabled = true;  // kliknięcie przeniesie do sklepu
+        }
+
+        int refund      = GameData.GetBallPrice(cfg.ballClass);
+        bool canSell    = owned > 1 || (!GameData.IsBaseClass(cfg.ballClass) && owned > 0);
+        // Bazowa klasa z 1 egzemplarzem (niekonsumowalnym) – nie da się sprzedać ostatniej
+        if (GameData.IsBaseClass(cfg.ballClass) && !GameData.Instance.consumedBaseBalls.Contains(cfg.ballClass) && owned <= 1)
+            canSell = false;
+
+        if (sellButton != null) sellButtonLabel.text = LocalizationManager.SellBtn;
 
         ShowDetail(
             canMerge ? new Color(1f, 0.85f, 0.1f) : cfg.color,
-            cfg.className,
+            LocalizationManager.GetClassName(cfg.ballClass),
             LocalizationManager.MergeFlavor,
-            LocalizationManager.OwnedCount(owned),
-            canMerge ? LocalizationManager.MergeBtn : LocalizationManager.BuyMoreBalls,
-            canMerge
+            LocalizationManager.OwnedCount(owned) + LocalizationManager.ValueLine(refund),
+            btnText,
+            btnEnabled,
+            isSellMode: false
         );
+
+        if (sellButton != null)
+        {
+            sellButton.gameObject.SetActive(canSell);
+            sellButton.interactable = canSell;
+        }
     }
 
     void SelectUpgrade(ClassConfig cfg, int fromLevel)
@@ -302,57 +476,135 @@ public class MergeUI : MonoBehaviour
         _selType      = SelType.Upgrade;
         _selCfg       = cfg;
         _selFromLevel = fromLevel;
+        GameData.Instance.mergeSelType      = 2;
+        GameData.Instance.mergeSelClass     = cfg.ballClass;
+        GameData.Instance.mergeSelFromLevel = fromLevel;
 
-        int count     = GameData.Instance.CountMergedOfLevel(cfg.ballClass, fromLevel);
-        bool canMerge = count >= 5;
-        int nextLevel = fromLevel + 1;
+        int count      = GameData.Instance.CountMergedOfLevel(cfg.ballClass, fromLevel);
+        bool hasTier   = GameData.Instance.HasMergeTier(fromLevel + 1);
+        bool canMerge  = GameData.Instance.CanMergeUp(cfg.ballClass, fromLevel);
+        _selCanMerge   = canMerge;
+        _selNeedsTier  = !hasTier;
+        int nextLevel  = fromLevel + 1;
 
+        string btnText;
+        bool btnEnabled;
+        if (!hasTier)
+        {
+            btnText    = LocalizationManager.MergeNeedArenaUpgrade;
+            btnEnabled = false;
+        }
+        else if (canMerge)
+        {
+            btnText    = LocalizationManager.MergeBtn;
+            btnEnabled = true;
+        }
+        else
+        {
+            btnText    = LocalizationManager.BuyMoreBalls;
+            btnEnabled = true;  // kliknięcie przeniesie do sklepu
+        }
+
+        int upgradeRefund = GameData.GetMergedBallRefund(cfg.ballClass, fromLevel);
         ShowDetail(
             canMerge ? new Color(1f, 0.85f, 0.1f) : new Color(0.8f, 0.6f, 0.1f),
-            cfg.className + "  " + LocalizationManager.LevelPrefix + fromLevel + " → " + LocalizationManager.LevelPrefix + nextLevel,
+            LocalizationManager.GetClassName(cfg.ballClass) + "  " + LocalizationManager.LevelPrefix + fromLevel + " → " + LocalizationManager.LevelPrefix + nextLevel,
             LocalizationManager.MergeUpgFlavor,
-            LocalizationManager.OwnedCountLevel(fromLevel, count),
-            canMerge ? LocalizationManager.MergeBtn : LocalizationManager.BuyMoreBalls,
-            canMerge
+            LocalizationManager.OwnedCountLevel(fromLevel, count) + LocalizationManager.ValueLine(upgradeRefund),
+            btnText,
+            btnEnabled
         );
     }
 
-    void SelectOwned(ClassConfig cfg, MergedBallData merged)
+    void SelectOwnedGroup(ClassConfig cfg, int level, int count)
     {
-        _selType = SelType.OwnedInfo;
-        _selCfg  = cfg;
+        _selType      = SelType.OwnedInfo;
+        _selCfg       = cfg;
+        _selOwnedLevel= level;
 
-        int  mult      = (int)merged.statMultiplier;
-        int  goldMult  = merged.goldMultiplier;
+        var sample = GameData.Instance.mergedBalls.Find(m => m.ballClass == cfg.ballClass && m.mergeLevel == level);
+        if (sample == null) return;
+
+        int mult     = (int)sample.statMultiplier;
+        int goldMult = sample.goldMultiplier;
+        int refund   = GameData.GetMergedBallRefund(cfg.ballClass, level);
+
+        bool isMastery = level == 5 && GameData.Instance.HasMastery(cfg.ballClass);
+        string prefix  = isMastery ? LocalizationManager.MasteryPrefix : LocalizationManager.SuperPrefix;
+        Color iconCol  = isMastery ? new Color(0.4f, 1f, 0.8f) : (level == 5 ? new Color(1f, 0.6f, 0.1f) : new Color(1f, 0.85f, 0.1f));
+
+        string stats   = LocalizationManager.MergedStatText(mult, goldMult, level) + "\n" + LocalizationManager.OwnedCount(count) + LocalizationManager.ValueLine(refund);
+        string mastery = null;
+        if (level == 5)
+            mastery = LocalizationManager.PassiveUnlocked + "\n\n" + BuildCrownInfo(cfg.ballClass);
 
         ShowDetail(
-            new Color(1f, 0.85f, 0.1f),
-            LocalizationManager.SuperPrefix + cfg.className + "  (" + LocalizationManager.LevelPrefix + merged.mergeLevel + ")",
+            iconCol,
+            prefix + LocalizationManager.GetClassName(cfg.ballClass) + "  (" + LocalizationManager.LevelPrefix + level + ")",
             LocalizationManager.SuperFlavor,
-            LocalizationManager.MergedStatText(mult, goldMult, merged.mergeLevel),
-            LocalizationManager.OwnedSingle,
-            false
+            stats,
+            LocalizationManager.SellBtn,
+            true,
+            mastery,
+            isSellMode: true
         );
+    }
+
+    string BuildCrownInfo(BallClass cls)
+    {
+        var crowns = GameData.Instance.GetOrCreateCrowns(cls);
+        return LocalizationManager.CrownProgress(crowns);
     }
 
     void ShowDetail(Color iconCol, string name, string flavor,
-                    string stats, string btnLabel, bool btnEnabled)
+                    string stats, string btnLabel, bool btnEnabled,
+                    string mastery = null, bool isSellMode = false)
     {
-        if (emptyHint != null) emptyHint.SetActive(false);
+        if (emptyHint  != null) emptyHint.SetActive(false);
         if (detailView != null) detailView.SetActive(true);
 
         if (detailIcon   != null) detailIcon.color  = iconCol;
         if (detailName   != null) detailName.text   = name;
         if (detailFlavor != null) detailFlavor.text = flavor;
         if (detailStats  != null) detailStats.text  = stats;
-        if (actionLabel  != null) actionLabel.text  = btnLabel;
-        if (actionButton != null) actionButton.interactable = btnEnabled;
+
+        // Jeśli jest osobny sellButton – rozdziel akcje
+        if (sellButton != null)
+        {
+            sellButton.gameObject.SetActive(isSellMode);
+            if (isSellMode && sellButtonLabel != null)
+                sellButtonLabel.text = btnLabel;
+
+            if (actionButton != null) actionButton.gameObject.SetActive(!isSellMode);
+            if (!isSellMode)
+            {
+                if (actionLabel  != null) actionLabel.text  = btnLabel;
+                if (actionButton != null) actionButton.interactable = btnEnabled;
+            }
+        }
+        else
+        {
+            if (actionLabel  != null) actionLabel.text  = btnLabel;
+            if (actionButton != null) actionButton.interactable = btnEnabled;
+        }
+
+        if (masteryText != null)
+        {
+            masteryText.text = mastery ?? "";
+            masteryText.gameObject.SetActive(!string.IsNullOrEmpty(mastery));
+        }
     }
 
     void ShowEmpty()
     {
-        if (emptyHint  != null) emptyHint.SetActive(true);
-        if (detailView != null) detailView.SetActive(false);
+        if (emptyHint    != null) emptyHint.SetActive(true);
+        if (detailView   != null) detailView.SetActive(false);
+        if (masteryText  != null) masteryText.gameObject.SetActive(false);
+        if (sellButton   != null) sellButton.gameObject.SetActive(false);
+        if (actionButton != null) actionButton.gameObject.SetActive(true);
+        _selType    = SelType.None;
+        _actionHeld = false; _holdTimer = 0f; _holdHeld = 0f; _holdFired = false;
+        GameData.Instance.mergeSelType = 0;
     }
 
     // ── Akcja przycisku ───────────────────────────────────────────────────
@@ -360,21 +612,37 @@ public class MergeUI : MonoBehaviour
     {
         switch (_selType)
         {
-            case SelType.Basic:   TryMergeBasic();   break;
-            case SelType.Upgrade: TryMergeUpgrade(); break;
+            case SelType.Basic:     TryMergeBasic();   break;
+            case SelType.Upgrade:   TryMergeUpgrade(); break;
+            case SelType.OwnedInfo: TrySellMerged();   break;
         }
     }
 
     void TryMergeBasic()
     {
         if (_selCfg == null) return;
+
+        // Brakuje tiera areny – nic nie rób (przycisk powinien być wyłączony)
+        if (!GameData.Instance.HasMergeTier(1))
+        {
+            ShowMsg(LocalizationManager.MergeNeedArenaUpgrade);
+            return;
+        }
+
+        // Nie ma wystarczająco kulek – idź do sklepu z tą klasą
         if (!GameData.Instance.CanMergeBasic(_selCfg.ballClass))
         {
-            ShowMsg("Masz: " + GameData.Instance.CountBasicBalls(_selCfg.ballClass) + "/5"); return;
+            GameData.Instance.shopPendingBall      = true;
+            GameData.Instance.shopPendingBallClass = _selCfg.ballClass;
+            GameData.Instance.shopBallsOpen        = true;
+            SceneTransition.ExitTo("ShopScene");
+            return;
         }
+
         if (GameData.Instance.TryMergeBasic(_selCfg.ballClass))
         {
-            ShowMsg("Scalono " + _selCfg.className + " → " + LocalizationManager.LevelPrefix + "1!");
+            GameData.Instance.Save();
+            ShowMsg(LocalizationManager.MergeSuccessBasic(LocalizationManager.GetClassName(_selCfg.ballClass)));
             RefreshTopBar(); BuildLists();
             SelectBasic(_selCfg);
         }
@@ -383,14 +651,28 @@ public class MergeUI : MonoBehaviour
     void TryMergeUpgrade()
     {
         if (_selCfg == null) return;
+
+        if (!GameData.Instance.HasMergeTier(_selFromLevel + 1))
+        {
+            ShowMsg(LocalizationManager.MergeNeedArenaUpgrade);
+            return;
+        }
+
+        // Nie ma wystarczająco scalonych – idź do sklepu z tą klasą
         if (!GameData.Instance.CanMergeUp(_selCfg.ballClass, _selFromLevel))
         {
-            ShowMsg("Masz: " + GameData.Instance.CountMergedOfLevel(_selCfg.ballClass, _selFromLevel) + "/5"); return;
+            GameData.Instance.shopPendingBall      = true;
+            GameData.Instance.shopPendingBallClass = _selCfg.ballClass;
+            GameData.Instance.shopBallsOpen        = true;
+            SceneTransition.ExitTo("ShopScene");
+            return;
         }
+
         if (GameData.Instance.TryMergeUp(_selCfg.ballClass, _selFromLevel))
         {
-            ShowMsg(_selCfg.className + " " + LocalizationManager.LevelPrefix + _selFromLevel
-                    + " → " + LocalizationManager.LevelPrefix + (_selFromLevel + 1) + "!");
+            GameData.Instance.Save();
+            ShowMsg(LocalizationManager.MergeSuccessUp(
+                LocalizationManager.GetClassName(_selCfg.ballClass), _selFromLevel));
             RefreshTopBar(); BuildLists();
             SelectUpgrade(_selCfg, _selFromLevel);
         }
@@ -428,9 +710,79 @@ public class MergeUI : MonoBehaviour
         TryMergeUpgrade();
     }
 
+    void TrySellMerged()
+    {
+        if (_selCfg == null) return;
+
+        if (_selType == SelType.Basic)
+        {
+            TrySellBasic();
+            return;
+        }
+
+        int level = _selOwnedLevel;
+        int idx = GameData.Instance.mergedBalls.FindLastIndex(
+            m => m.ballClass == _selCfg.ballClass && m.mergeLevel == level);
+        if (idx < 0) return;
+
+        GameData.Instance.mergedBalls.RemoveAt(idx);
+        int refund = GameData.GetMergedBallRefund(_selCfg.ballClass, level);
+        GameData.Instance.gold += refund;
+        GameData.Instance.Save();
+        AudioController.Instance?.PlayShopBuy();
+        ShowMsg(LocalizationManager.SoldBall(LocalizationManager.GetClassName(_selCfg.ballClass)));
+        RefreshTopBar(); BuildLists();
+
+        if (GameData.Instance.CountMergedOfLevel(_selCfg.ballClass, level) > 0)
+            SelectOwnedGroup(_selCfg, level, GameData.Instance.CountMergedOfLevel(_selCfg.ballClass, level));
+        else
+            ShowEmpty();
+    }
+
+    void TrySellBasic()
+    {
+        var gd    = GameData.Instance;
+        var cls   = _selCfg.ballClass;
+        int owned = gd.CountBasicBalls(cls);
+        int price = GameData.GetBallPrice(cls);
+
+        bool isBase       = GameData.IsBaseClass(cls);
+        bool baseConsumed = gd.consumedBaseBalls.Contains(cls);
+
+        // Nie możemy sprzedać jeśli zostałaby 0 kulek
+        // (bazowa niekonsumowana liczy jako 1 darmowa)
+        if (isBase && !baseConsumed && owned <= 1) return;
+        if (owned <= 0) return;
+
+        // Usuń: najpierw z purchasedBalls, jeśli nie ma – konsumuj bazową
+        int idx = gd.purchasedBalls.FindLastIndex(b => b == cls);
+        if (idx >= 0)
+        {
+            gd.purchasedBalls.RemoveAt(idx);
+        }
+        else if (isBase && !baseConsumed)
+        {
+            // Sprzedaż "darmowej" bazowej = konsumujemy ją i nie oddajemy kasy
+            // (gracz nigdy jej nie kupował, więc refund = 0)
+            gd.consumedBaseBalls.Add(cls);
+            price = 0;
+        }
+
+        gd.gold += price;
+        gd.Save();
+        AudioController.Instance?.PlayShopBuy();
+        ShowMsg(LocalizationManager.SoldBall(LocalizationManager.GetClassName(cls)));
+        RefreshTopBar(); BuildLists();
+
+        if (gd.CountBasicBalls(cls) > 0)
+            SelectBasic(_selCfg);
+        else
+            ShowEmpty();
+    }
+
     // ── Nawigacja ─────────────────────────────────────────────────────────
-    public void GoToShop()     => SceneManager.LoadScene("ShopScene");
-    public void GoToGame()     => SceneManager.LoadScene("GameScene");
-    public void GoToMainMenu() => SceneManager.LoadScene("MainMenu");
+    public void GoToShop()     => SceneTransition.ExitTo("ShopScene");
+    public void GoToGame()     => SceneTransition.ExitTo("GameScene");
+    public void GoToMainMenu() => SceneTransition.ExitTo("MainMenu");
     public void OpenSettings() => SettingsPanel.Open();
 }

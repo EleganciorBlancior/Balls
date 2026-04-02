@@ -40,6 +40,13 @@ public class LogoScreen : MonoBehaviour
 
     private void Start()
     {
+        // Ustaw disclaimer na podstawie języka (jeśli GameData istnieje)
+        if (warningText != null && GameData.Instance != null)
+        {
+            LocalizationManager.SetLanguage(GameData.Instance.language);
+            warningText.text = LocalizationManager.DisclaimerText;
+        }
+
         // Zapamiętaj docelowe pozycje przed ukryciem elementów
         if (studioLabel != null)
         {

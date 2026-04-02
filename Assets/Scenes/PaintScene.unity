@@ -1292,6 +1292,7 @@ MonoBehaviour:
   stripeLabel: {fileID: 1457724292}
   saveButton: {fileID: 869301429}
   resetButton: {fileID: 1867707552}
+  backButtonLabel: {fileID: 713060700}
   allClassConfigs:
   - {fileID: 11400000, guid: e28e44d505059e3e9831ebfa24e40721, type: 2}
   - {fileID: 11400000, guid: 2d6374597bcaff3bfb8de86f2063a384, type: 2}
@@ -2670,6 +2671,17 @@ RectTransform:
   m_CorrespondingSourceObject: {fileID: 711644715780638301, guid: 3a04edfeb14cb87e9a4d4eac233b64fc, type: 3}
   m_PrefabInstance: {fileID: 713060698}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &713060700 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 4039174317480905631, guid: 3a04edfeb14cb87e9a4d4eac233b64fc, type: 3}
+  m_PrefabInstance: {fileID: 713060698}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4688fdb7df04437aeb418b961361dc5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.TextMeshPro::TMPro.TextMeshProUGUI
 --- !u!1 &731731978
 GameObject:
   m_ObjectHideFlags: 0
@@ -5789,7 +5801,7 @@ SceneRoots:
   - {fileID: 2878877}
   - {fileID: 223319273}
   - {fileID: 90547263}
-  - {fileID: 313545532}
   - {fileID: 594247042}
   - {fileID: 658147465}
   - {fileID: 1763432995}
+  - {fileID: 313545532}

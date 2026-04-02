@@ -14,6 +14,12 @@ public class MainMenuUI : MonoBehaviour
     public TMP_Text   paintButtonLabel;
     public Button     settingsButton;
 
+    // Opcjonalne referencje do tekstów przycisków (jeśli TMP_Text nie jest bezpośrednim dzieckiem)
+    [Header("Teksty przycisków (opcjonalne)")]
+    public TMP_Text playButtonLabel;
+    public TMP_Text quitButtonLabel;
+    public TMP_Text settingsButtonLabel;
+
     [Header("Animacja tytułu (opcjonalne)")]
     public RectTransform titleRect;
 
@@ -27,11 +33,20 @@ public class MainMenuUI : MonoBehaviour
             go.AddComponent<GameData>();
         }
 
-        // Przywróć ustawienia z GameData
         LocalizationManager.SetLanguage(GameData.Instance.language);
         AudioController.Instance?.SetSFXVolume(GameData.Instance.sfxVolume);
         AudioController.Instance?.SetMusicVolume(GameData.Instance.musicVolume);
         QualitySettings.SetQualityLevel(GameData.Instance.qualityLevel, true);
+
+        RefreshLabels();
+    }
+
+    void RefreshLabels()
+    {
+        // Przyciski z opcjonalnymi referencjami
+        if (playButtonLabel     != null) playButtonLabel.text     = LocalizationManager.MainMenuPlay;
+        if (quitButtonLabel     != null) quitButtonLabel.text     = LocalizationManager.MainMenuQuit;
+        if (settingsButtonLabel != null) settingsButtonLabel.text = LocalizationManager.MainMenuSettings;
 
         RefreshPaintButton();
     }
@@ -42,8 +57,8 @@ public class MainMenuUI : MonoBehaviour
         paintButton.interactable = true;
         if (paintButtonLabel != null)
             paintButtonLabel.text = GameData.Instance.paintShopUnlocked
-                ? "Malarnia"
-                : "KUP (" + GameData.PAINT_SHOP_COST + "G)";
+                ? LocalizationManager.MainMenuPaint
+                : LocalizationManager.MainMenuPaintBuy;
     }
 
     private void Update()
@@ -84,12 +99,16 @@ public class MainMenuUI : MonoBehaviour
 
         GameData.Instance.gold -= GameData.PAINT_SHOP_COST;
         GameData.Instance.paintShopUnlocked = true;
+        GameData.Instance.Save();
         RefreshPaintButton();
         SceneTransition.ExitTo("PaintScene");
     }
 
     public void OnSettingsClicked()
     {
-        SettingsPanel.Open(() => RefreshPaintButton());
+        SettingsPanel.Open(() =>
+        {
+            RefreshLabels();
+        });
     }
 }

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.IO;
 using UnityEngine;
 
 [System.Serializable]
@@ -49,7 +50,7 @@ public class GameData : MonoBehaviour
     [HideInInspector] public float        sfxVolume    = 1f;
     [HideInInspector] public float        musicVolume  = 0.4f;
     [HideInInspector] public int          qualityLevel = 1;
-    [HideInInspector] public GameLanguage language     = GameLanguage.PL;
+    [HideInInspector] public GameLanguage language     = GameLanguage.EN;
 
     // ── Ulepszenie Pulla ──────────────────────────────────────────────────────
     [HideInInspector] public int pullUpgradeLevel = 0;
@@ -67,9 +68,7 @@ public class GameData : MonoBehaviour
         }
     }
 
-    // Siła impulsu przy TriggerCenterPull
     public static float GetPullForce(int level)    => 18f + level * 8f;
-    // Czas trwania ciągłego przyciągania po impulsie (sekundy)
     public static float GetPullDuration(int level) => level * 0.6f;
 
     public const int PAINT_SHOP_COST = 300;
@@ -98,10 +97,11 @@ public class GameData : MonoBehaviour
         _defaultTiers = new ArenaTier[]
         {
             new ArenaTier { tierName="Mała (S)",          ballScaleMultiplier=1.000f, backgroundScale=18f, upgradeCost=  80, maxExtraBalls=3  },
-            new ArenaTier { tierName="Średnia (M)",       ballScaleMultiplier=0.875f, backgroundScale=24f, upgradeCost= 150, maxExtraBalls=9  },
-            new ArenaTier { tierName="Duża (L)",          ballScaleMultiplier=0.750f, backgroundScale=32f, upgradeCost= 250, maxExtraBalls=24  },
-            new ArenaTier { tierName="Gigant (XL)",       ballScaleMultiplier=0.625f, backgroundScale=42f, upgradeCost=1250, maxExtraBalls=49  },
-            new ArenaTier { tierName="Twoja matka (XXL)", ballScaleMultiplier=0.500f, backgroundScale=54f, upgradeCost=2500, maxExtraBalls=69  },
+            new ArenaTier { tierName="Średnia (M)",       ballScaleMultiplier=0.875f, backgroundScale=24f, upgradeCost= 150, maxExtraBalls=23  },
+            new ArenaTier { tierName="Duża (L)",          ballScaleMultiplier=0.750f, backgroundScale=32f, upgradeCost= 1250, maxExtraBalls=123  },
+            new ArenaTier { tierName="Gigant (XL)",       ballScaleMultiplier=0.625f, backgroundScale=42f, upgradeCost=7500, maxExtraBalls=623  },
+            new ArenaTier { tierName="Olbrzym (XXL)", ballScaleMultiplier=0.500f, backgroundScale=54f, upgradeCost=50000, maxExtraBalls=3123   },
+            new ArenaTier { tierName="Twoja stara (XXXL)",   ballScaleMultiplier=0.375f, backgroundScale=68f, upgradeCost=250000, maxExtraBalls=9999 },
         };
     }
 
@@ -109,6 +109,13 @@ public class GameData : MonoBehaviour
     public bool      IsMaxTier   => arenaTierIndex >= ArenaTiers.Length - 1;
 
     // ── Ceny klas ─────────────────────────────────────────────────────────────
+    public static int GetMergedBallRefund(BallClass cls, int mergeLevel)
+    {
+        int total = (int)Mathf.Pow(5, mergeLevel);
+        if (IsBaseClass(cls)) total -= 1;  // jedna kulka bazowa jest darmowa
+        return total * GetBallPrice(cls);
+    }
+
     public static int GetBallPrice(BallClass cls)
     {
         switch (cls)
@@ -150,21 +157,38 @@ public class GameData : MonoBehaviour
         return count;
     }
 
+    /// <summary>Łączna liczba kulek gracza: bazowe (niezużyte) + kupione + scalone.</summary>
+    public int TotalOwnedBalls()
+    {
+        int count = BASE_CLASSES.Length - consumedBaseBalls.Count;
+        count += purchasedBalls.Count;
+        count += mergedBalls.Count;
+        return count;
+    }
+
     // Aliasy dla starych wywołań
     public int  CountBallsOfClass(BallClass cls) => CountBasicBalls(cls);
     public bool CanMerge(BallClass cls)           => CanMergeBasic(cls);
     public bool TryMerge(BallClass cls)           => TryMergeBasic(cls);
 
     // ── Scalanie ──────────────────────────────────────────────────────────────
-    public bool CanMergeBasic(BallClass cls) => CountBasicBalls(cls) >= 5;
-    public bool CanMergeUp(BallClass cls, int fromLevel) => CountMergedOfLevel(cls, fromLevel) >= 5;
+    /// <summary>Czy tier areny pozwala na scalenie na dany poziom (1 = tier 1, itd.).</summary>
+    public bool HasMergeTier(int mergeLevel = 1) => arenaTierIndex >= mergeLevel;
+
+    public bool CanMergeBasic(BallClass cls) => HasMergeTier(1) && CountBasicBalls(cls) >= 5;
+    public bool CanMergeUp(BallClass cls, int fromLevel)
+    {
+        if (!HasMergeTier(fromLevel + 1)) return false;
+        if (CountMergedOfLevel(cls, fromLevel) < 5) return false;
+        if (fromLevel == 4 && CountMergedOfLevel(cls, 5) >= 1) return false;  // max 1x Lv5
+        return true;
+    }
 
     /// <summary>Scal 5 bazowych kulek klasy → 1 kulka Poz.1</summary>
     public bool TryMergeBasic(BallClass cls)
     {
         if (!CanMergeBasic(cls)) return false;
         int toRemove = 5;
-        // Zużyj bazową kulkę jeśli dostępna
         if (IsBaseClass(cls) && !consumedBaseBalls.Contains(cls))
         {
             consumedBaseBalls.Add(cls);
@@ -215,10 +239,212 @@ public class GameData : MonoBehaviour
         }
     }
 
+    // ── Stan scen ─────────────────────────────────────────────────────────────
+
+    // ShopScene
+    [HideInInspector] public bool      shopBallsOpen    = false;
+    [HideInInspector] public bool      shopUpgradesOpen = false;
+    [HideInInspector] public int       shopSelType      = 0;   // 0=none,1=ball,2=arena,3=pull
+    [HideInInspector] public BallClass shopSelClass     = BallClass.Warrior;
+    [HideInInspector] public int       shopSelTierIdx   = 0;
+
+    // MergeScene
+    [HideInInspector] public bool      mergeBasicOpen   = false;
+    [HideInInspector] public bool      mergeUpgradeOpen = false;
+    [HideInInspector] public bool      mergeOwnedOpen   = false;
+    [HideInInspector] public int       mergeSelType     = 0;   // 0=none,1=basic,2=upgrade,3=owned
+    [HideInInspector] public BallClass mergeSelClass    = BallClass.Warrior;
+    [HideInInspector] public int       mergeSelFromLevel= 1;
+
+    // PaintScene
+    [HideInInspector] public bool      paintHasSelection  = false;
+    [HideInInspector] public BallClass paintSelClass      = BallClass.Warrior;
+
+    // Nawigacja Merge → Shop (gdy brakuje kulek do scalenia)
+    [HideInInspector] public bool      shopPendingBall      = false;
+    [HideInInspector] public BallClass shopPendingBallClass = BallClass.Warrior;
+
+    // ── Korony (Crown tracking) ───────────────────────────────────────────────
+    public const float CROWN_DMG_DEALT_THRESHOLD = 3000000f;
+    public const float CROWN_DMG_TAKEN_THRESHOLD = 1500000f;
+    public const int   CROWN_WINS_THRESHOLD      = 50;
+
+    [System.Serializable]
+    public class ClassCrowns
+    {
+        public BallClass ballClass;
+        public float     totalDamageDealt;
+        public float     totalDamageTaken;
+        public int       totalWins;
+        public bool      crownDamageDealt;
+        public bool      crownDamageTaken;
+        public bool      crownWins;
+        public bool      HasMastery => crownDamageDealt && crownDamageTaken && crownWins;
+    }
+
+    [HideInInspector] public List<ClassCrowns> classCrowns = new List<ClassCrowns>();
+
+    public ClassCrowns GetOrCreateCrowns(BallClass cls)
+    {
+        var c = classCrowns.Find(x => x.ballClass == cls);
+        if (c == null) { c = new ClassCrowns { ballClass = cls }; classCrowns.Add(c); }
+        return c;
+    }
+
+    public bool HasMastery(BallClass cls) => GetOrCreateCrowns(cls).HasMastery;
+
+    public void RecordDamageDealt(BallClass cls, float dmg)
+    {
+        var c = GetOrCreateCrowns(cls);
+        c.totalDamageDealt += dmg;
+        if (!c.crownDamageDealt && c.totalDamageDealt >= CROWN_DMG_DEALT_THRESHOLD)
+            c.crownDamageDealt = true;
+    }
+
+    public void RecordDamageTaken(BallClass cls, float dmg)
+    {
+        var c = GetOrCreateCrowns(cls);
+        c.totalDamageTaken += dmg;
+        if (!c.crownDamageTaken && c.totalDamageTaken >= CROWN_DMG_TAKEN_THRESHOLD)
+            c.crownDamageTaken = true;
+    }
+
+    public void RecordWin(BallClass cls)
+    {
+        var c = GetOrCreateCrowns(cls);
+        c.totalWins++;
+        if (!c.crownWins && c.totalWins >= CROWN_WINS_THRESHOLD)
+            c.crownWins = true;
+    }
+
+    // ── Zapis / Odczyt ────────────────────────────────────────────────────────
+    static string SavePath => Path.Combine(Application.persistentDataPath, "savegame.json");
+
+    public void Save()
+    {
+        try
+        {
+            var sd = new SaveData(this);
+            File.WriteAllText(SavePath, JsonUtility.ToJson(sd, true));
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning("[GameData] Save failed: " + e.Message);
+        }
+    }
+
+    public bool Load()
+    {
+        if (!File.Exists(SavePath)) return false;
+        try
+        {
+            var sd = JsonUtility.FromJson<SaveData>(File.ReadAllText(SavePath));
+            sd.ApplyTo(this);
+            return true;
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning("[GameData] Load failed: " + e.Message);
+            return false;
+        }
+    }
+
+    public static bool SaveExists() => File.Exists(SavePath);
+
+    public void ResetSave()
+    {
+        if (File.Exists(SavePath))
+            File.Delete(SavePath);
+
+        gold               = 100;
+        arenaTierIndex     = 0;
+        paintShopUnlocked  = false;
+        sfxVolume          = 1f;
+        musicVolume        = 0.4f;
+        qualityLevel       = 1;
+        language           = GameLanguage.EN;
+        pullUpgradeLevel   = 0;
+        purchasedBalls     = new List<BallClass>();
+        mergedBalls        = new List<MergedBallData>();
+        consumedBaseBalls  = new List<BallClass>();
+        ballCustomizations = new List<BallCustomization>();
+        classCrowns        = new List<ClassCrowns>();
+
+        shopBallsOpen    = false;
+        shopUpgradesOpen = false;
+        shopSelType      = 0;
+        mergeBasicOpen   = false;
+        mergeUpgradeOpen = false;
+        mergeOwnedOpen   = false;
+        mergeSelType     = 0;
+        paintHasSelection= false;
+        shopPendingBall  = false;
+    }
+
     private void Awake()
     {
         if (Instance != null) { Destroy(gameObject); return; }
         Instance = this;
         DontDestroyOnLoad(gameObject);
+        Load();
+    }
+
+    private void OnApplicationQuit()   => Save();
+    private void OnApplicationPause(bool paused) { if (paused) Save(); }
+}
+
+// ── Dane zapisu ───────────────────────────────────────────────────────────────
+[System.Serializable]
+public class SaveData
+{
+    public int   gold;
+    public int   arenaTierIndex;
+    public bool  paintShopUnlocked;
+    public float sfxVolume;
+    public float musicVolume;
+    public int   qualityLevel;
+    public GameLanguage language;
+    public int   pullUpgradeLevel;
+
+    public List<BallClass>         purchasedBalls;
+    public List<MergedBallData>    mergedBalls;
+    public List<BallClass>         consumedBaseBalls;
+    public List<BallCustomization> ballCustomizations;
+    public List<GameData.ClassCrowns> classCrowns;
+
+    public SaveData() { }
+
+    public SaveData(GameData d)
+    {
+        gold               = d.gold;
+        arenaTierIndex     = d.arenaTierIndex;
+        paintShopUnlocked  = d.paintShopUnlocked;
+        sfxVolume          = d.sfxVolume;
+        musicVolume        = d.musicVolume;
+        qualityLevel       = d.qualityLevel;
+        language           = d.language;
+        pullUpgradeLevel   = d.pullUpgradeLevel;
+        purchasedBalls     = new List<BallClass>(d.purchasedBalls);
+        mergedBalls        = new List<MergedBallData>(d.mergedBalls);
+        consumedBaseBalls  = new List<BallClass>(d.consumedBaseBalls);
+        ballCustomizations = new List<BallCustomization>(d.ballCustomizations);
+        classCrowns        = new List<GameData.ClassCrowns>(d.classCrowns);
+    }
+
+    public void ApplyTo(GameData d)
+    {
+        d.gold               = gold;
+        d.arenaTierIndex     = arenaTierIndex;
+        d.paintShopUnlocked  = paintShopUnlocked;
+        d.sfxVolume          = sfxVolume;
+        d.musicVolume        = musicVolume;
+        d.qualityLevel       = qualityLevel;
+        d.language           = language;
+        d.pullUpgradeLevel   = pullUpgradeLevel;
+        d.purchasedBalls     = purchasedBalls     ?? new List<BallClass>();
+        d.mergedBalls        = mergedBalls        ?? new List<MergedBallData>();
+        d.consumedBaseBalls  = consumedBaseBalls  ?? new List<BallClass>();
+        d.ballCustomizations = ballCustomizations ?? new List<BallCustomization>();
+        d.classCrowns        = classCrowns        ?? new List<GameData.ClassCrowns>();
     }
 }

@@ -56,18 +56,17 @@ public class PaintShopUI : MonoBehaviour
 
     // ── Color picker ──────────────────────────────────────────────────────
     [Header("Color Picker")]
-    public ColorWheelPicker colorPicker;   // komponent na RawImage
+    public ColorWheelPicker colorPicker;
 
     // ── Zakładki (przyciski używają własnego Image) ───────────────────────
     [Header("Zakładki kolorów")]
     public Button   c1TabButton;
     public Button   c2TabButton;
     public Button   c3TabButton;
-    // Jeden podgląd koloru aktywnej zakładki
     public Image    tabPreview;
 
     [Header("Brightness Slider")]
-    public Slider   brightnessSlider;   // podpnij tu – zostanie przekazany do ColorWheelPicker
+    public Slider   brightnessSlider;
 
     // ── Paski (pokazywane gdy tab3 aktywny + wzór stripe/dots) ───────────
     [Header("Paski")]
@@ -79,6 +78,10 @@ public class PaintShopUI : MonoBehaviour
     [Header("Przyciski")]
     public Button saveButton;
     public Button resetButton;
+
+    // ── Przyciski nawigacyjne (opcjonalne) ────────────────────────────────
+    [Header("Przyciski nawigacyjne (opcjonalne)")]
+    public TMP_Text backButtonLabel;
 
     // ── Klasy ─────────────────────────────────────────────────────────────
     [Header("Klasy (16 assetów)")]
@@ -93,9 +96,8 @@ public class PaintShopUI : MonoBehaviour
     private Color        _c1, _c2, _c3;
     private BallPattern  _pattern;
     private int          _stripes;
-    private int          _activeColor = 0;   // 0=C1, 1=C2, 2=Paski/C3
+    private int          _activeColor = 0;
 
-    // Cachuję Image i TMP_Text każdego buttona raz w Start
     private Image    _c1Img,  _c2Img,  _c3Img;
     private TMP_Text _c1Lbl,  _c2Lbl,  _c3Lbl;
 
@@ -105,15 +107,34 @@ public class PaintShopUI : MonoBehaviour
         if (GameData.Instance == null)
             new GameObject("GameData").AddComponent<GameData>();
 
+        // Lokalizacja przycisków Save/Reset
+        if (saveButton  != null) { var lbl = saveButton.GetComponentInChildren<TMP_Text>();  if (lbl) lbl.text = LocalizationManager.PaintSave; }
+        if (resetButton != null) { var lbl = resetButton.GetComponentInChildren<TMP_Text>(); if (lbl) lbl.text = LocalizationManager.PaintReset; }
+        if (backButtonLabel != null) backButtonLabel.text = LocalizationManager.Back;
+
         CacheButtonComponents();
+
+        // Lokalizacja zakładek kolorów
+        if (_c1Lbl != null) _c1Lbl.text = LocalizationManager.PaintTab1;
+        if (_c2Lbl != null) _c2Lbl.text = LocalizationManager.PaintTab2;
+        // c3 label zależy od wzoru – ustawiamy w RefreshTabsAndWheel
+
         if (colorPicker != null && brightnessSlider != null)
             colorPicker.HookBrightnessSlider(brightnessSlider);
+
         BuildBallList();
         ShowEmpty();
         SetupPatternDropdown();
         HookColorPicker();
         HookColorTabs();
         HookStripeSlider();
+
+        // Przywróć poprzednią selekcję
+        if (GameData.Instance.paintHasSelection)
+        {
+            var cfg = GetCfg(GameData.Instance.paintSelClass);
+            if (cfg != null) SelectBall(cfg);
+        }
     }
 
     void CacheButtonComponents()
@@ -147,17 +168,23 @@ public class PaintShopUI : MonoBehaviour
             if (cfg == null || !IsAvailable(cfg.ballClass)) continue;
             var row = SpawnRow();
             if (row == null) continue;
-            row.Setup(cfg.color, cfg.className, "");
+            row.Setup(cfg.color, LocalizationManager.GetClassName(cfg.ballClass), "");
             var cap = cfg;
             if (row.btn != null) row.btn.onClick.AddListener(() => SelectBall(cap));
         }
+        var mergedGroups = new Dictionary<BallClass, int>();
         foreach (var merged in gd.mergedBalls)
+            mergedGroups[merged.ballClass] = mergedGroups.ContainsKey(merged.ballClass)
+                ? mergedGroups[merged.ballClass] + 1 : 1;
+        foreach (var cfg in allClassConfigs)
         {
-            var cfg = GetCfg(merged.ballClass);
-            if (cfg == null) continue;
+            if (cfg == null || !mergedGroups.ContainsKey(cfg.ballClass)) continue;
+            int cnt = mergedGroups[cfg.ballClass];
             var row = SpawnRow();
             if (row == null) continue;
-            row.Setup(new Color(1f, 0.85f, 0.1f), "SUPER " + cfg.className, "Poz." + merged.mergeLevel);
+            row.Setup(new Color(1f, 0.85f, 0.1f),
+                      LocalizationManager.SuperPrefix + LocalizationManager.GetClassName(cfg.ballClass),
+                      "×" + cnt);
             var cap = cfg;
             if (row.btn != null) row.btn.onClick.AddListener(() => SelectBall(cap));
         }
@@ -183,6 +210,9 @@ public class PaintShopUI : MonoBehaviour
     void SelectBall(ClassConfig cfg)
     {
         _selCfg = cfg;
+        GameData.Instance.paintHasSelection = true;
+        GameData.Instance.paintSelClass     = cfg.ballClass;
+
         var custom = GameData.Instance.GetCustomization(cfg.ballClass);
         if (custom != null)
         {
@@ -197,7 +227,7 @@ public class PaintShopUI : MonoBehaviour
 
         if (emptyHint  != null) emptyHint.SetActive(false);
         if (editorView != null) editorView.SetActive(true);
-        if (ballNameLabel != null) ballNameLabel.text = cfg.className;
+        if (ballNameLabel != null) ballNameLabel.text = LocalizationManager.GetClassName(cfg.ballClass);
 
         _activeColor = 0;
         RefreshDropdown();
@@ -249,26 +279,25 @@ public class PaintShopUI : MonoBehaviour
         RefreshTabsAndWheel();
     }
 
-    // Przepisuje widoczność przycisków, wheel vs stripeRow, załadowanie koloru
     void RefreshTabsAndWheel()
     {
         bool useStripes = ShowsStripes();
         bool useColor3  = ShowsColor3();
         bool useColor2  = ShowsColor2();
 
-        // Widoczność przycisków
         if (c1TabButton != null) c1TabButton.gameObject.SetActive(true);
         if (c2TabButton != null) c2TabButton.gameObject.SetActive(useColor2);
         if (c3TabButton != null) c3TabButton.gameObject.SetActive(useColor2 && (useStripes || useColor3));
 
-        // Label przycisku 3
-        if (_c3Lbl != null) _c3Lbl.text = useStripes ? StripeTabLabel() : "Kolor 3";
+        // Label zakładki 1 i 2
+        if (_c1Lbl != null) _c1Lbl.text = LocalizationManager.PaintTab1;
+        if (_c2Lbl != null) _c2Lbl.text = LocalizationManager.PaintTab2;
+        // Label zakładki 3 – Paski / Kropki / Kolor 3
+        if (_c3Lbl != null) _c3Lbl.text = useStripes ? StripeTabLabel() : LocalizationManager.PaintTab3Color;
 
-        // Jeśli aktywna zakładka stała się niewidoczna – wróć do 0
         if (_activeColor == 2 && !(useStripes || useColor3)) _activeColor = 0;
         if (_activeColor == 1 && !useColor2)                 _activeColor = 0;
 
-        // Wheel vs stripe slider
         bool tabIsStripe = (_activeColor == 2 && useStripes);
         if (colorPicker != null) colorPicker.gameObject.SetActive(!tabIsStripe);
         if (stripeRow   != null) stripeRow.SetActive(tabIsStripe);
@@ -287,8 +316,6 @@ public class PaintShopUI : MonoBehaviour
         RefreshTabColors();
     }
 
-    // Ustawia kolor Image każdego przycisku: aktywny = ciemny TAB_ACTIVE, nieaktywny = kolor kulki
-    // Ustawia też osobny podgląd koloru w zakładce
     void RefreshTabColors()
     {
         SetTabImg(_c1Img, 0);
@@ -309,11 +336,10 @@ public class PaintShopUI : MonoBehaviour
     {
         if (patternDropdown == null) return;
         patternDropdown.ClearOptions();
-        patternDropdown.AddOptions(new List<string>
-        {
-            "Jednolity", "Poziome prążki", "Skośne prążki",
-            "Pepsi", "Ćwiartki", "Plasterki", "Kropki", "Pierścień"
-        });
+        var options = new List<string>();
+        for (int i = 0; i < System.Enum.GetValues(typeof(BallPattern)).Length; i++)
+            options.Add(LocalizationManager.GetPatternName((BallPattern)i));
+        patternDropdown.AddOptions(options);
         patternDropdown.onValueChanged.AddListener(OnPatternChanged);
     }
 
@@ -330,7 +356,8 @@ public class PaintShopUI : MonoBehaviour
         RefreshPreview();
     }
 
-    string StripeTabLabel() => _pattern == BallPattern.Dots ? "Kropki" : "Paski";
+    string StripeTabLabel()
+        => _pattern == BallPattern.Dots ? LocalizationManager.PaintDots : LocalizationManager.PaintStripes;
 
     bool ShowsColor2()  => _pattern != BallPattern.Solid;
     bool ShowsColor3()  => _pattern == BallPattern.Wedge || _pattern == BallPattern.Ring;
@@ -365,6 +392,7 @@ public class PaintShopUI : MonoBehaviour
     {
         if (_selCfg == null) return;
         GameData.Instance.SaveCustomization(_selCfg.ballClass, _c1, _c2, _c3, _pattern, _stripes);
+        GameData.Instance.Save();
         StartCoroutine(FlashSaveBtn());
     }
 
