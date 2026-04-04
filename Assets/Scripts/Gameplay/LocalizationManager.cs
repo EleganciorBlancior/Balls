@@ -80,7 +80,7 @@ public static class LocalizationManager
     public static string BuyMoreBalls    => Language == GameLanguage.PL ? "Dokup kule"                      : "Buy more";
     public static string MergeInfoLine   => Language == GameLanguage.PL ? "Scal 5 kulek tej samej klasy i poziomu." : "Merge 5 balls of the same class and level.";
     public static string SuperPrefix     => "SUPER ";
-    public static string MasteryPrefix   => "MISTRZ ";
+    public static string MasteryPrefix   => Language == GameLanguage.PL ? "MISTRZ " : "MASTER ";
     public static string Sell         => Language == GameLanguage.PL ? "Sprzedaj"  : "Sell";
     public static string SellBtn      => Language == GameLanguage.PL ? "SPRZEDAJ"  : "SELL";
     public static string ValueLine(int gold)
@@ -178,8 +178,8 @@ public static class LocalizationManager
                 case 1: return "Medium (M)";
                 case 2: return "Large (L)";
                 case 3: return "Giant (XL)";
-                case 4: return "Your Mom (XXL)";
-                case 5: return "Krychta (XXXL)";
+                case 4: return "Tremendous (XXL)";
+                case 5: return "Your mom (XXXL)";
                 default: return "???";
             }
         }
@@ -189,8 +189,8 @@ public static class LocalizationManager
             case 1: return "Średnia (M)";
             case 2: return "Duża (L)";
             case 3: return "Gigant (XL)";
-            case 4: return "Twoja matka (XXL)";
-            case 5: return "Krychta (XXXL)";
+            case 4: return "Olbrzym (XXL)";
+            case 5: return "Twoja stara (XXXL)";
             default: return "???";
         }
     }
@@ -233,6 +233,16 @@ public static class LocalizationManager
     public static string QualityMed       => Language == GameLanguage.PL ? "Średnia"         : "Medium";
     public static string QualityHigh      => Language == GameLanguage.PL ? "Wysoka"          : "High";
     public static string ResolutionLabel  => Language == GameLanguage.PL ? "Rozdzielczość"   : "Resolution";
+
+    // ── Reset danych ──────────────────────────────────────────────────────────
+    public static string ResetDataBtn     => Language == GameLanguage.PL ? "Resetuj dane"    : "Reset data";
+    public static string ResetConfirmTitle=> Language == GameLanguage.PL ? "NA PEWNO?"       : "ARE YOU SURE?";
+    public static string ResetConfirmBody => Language == GameLanguage.PL
+        ? "Usuwa: zloto, kulki, scalone, mistrzostwa, malarnie.\nUstawienia zostaja."
+        : "Deletes: gold, balls, merged, mastery, paint.\nSettings are kept.";
+    public static string ResetConfirmYes  => Language == GameLanguage.PL ? "TAK, RESETUJ"   : "YES, RESET";
+    public static string ResetConfirmNo   => Language == GameLanguage.PL ? "Anuluj"          : "Cancel";
+    public static string ResetDone        => Language == GameLanguage.PL ? "Dane zresetowane!" : "Data reset!";
 
     // ── LogoScreen disclaimer ─────────────────────────────────────────────────
     public static string DisclaimerText

@@ -51,6 +51,19 @@ public class SettingsPanel : MonoBehaviour
     [Header("Zamknij")]
     public Button backButton;
 
+    [Header("Reset danych (opcjonalne)")]
+    public Button   resetDataButton;
+    public TMP_Text resetDataLabel;
+
+    [Header("Panel potwierdzenia resetu (opcjonalne)")]
+    public GameObject confirmPanel;
+    public TMP_Text   confirmTitle;
+    public TMP_Text   confirmBody;
+    public Button     confirmYesButton;
+    public TMP_Text   confirmYesLabel;
+    public Button     confirmNoButton;
+    public TMP_Text   confirmNoLabel;
+
     private readonly List<Canvas> _hiddenCanvases = new List<Canvas>();
 
     // ── Statyczne API ─────────────────────────────────────────────────────────
@@ -108,6 +121,12 @@ public class SettingsPanel : MonoBehaviour
 
         // Back
         if (backButton != null) backButton.onClick.AddListener(Close);
+
+        // Reset danych
+        if (resetDataButton != null) resetDataButton.onClick.AddListener(ShowResetConfirm);
+        if (confirmYesButton != null) confirmYesButton.onClick.AddListener(OnResetConfirmed);
+        if (confirmNoButton  != null) confirmNoButton.onClick.AddListener(HideResetConfirm);
+        if (confirmPanel     != null) confirmPanel.SetActive(false);
 
         RefreshLabels();
     }    
@@ -185,16 +204,23 @@ public class SettingsPanel : MonoBehaviour
 
         _resolutions = Screen.resolutions;
         var options  = new List<string>();
-        _currentResIdx = 0;
+        _currentResIdx = _resolutions.Length - 1;  // fallback: najwyższa
 
         for (int i = 0; i < _resolutions.Length; i++)
         {
             var r = _resolutions[i];
             options.Add(r.width + " × " + r.height + "  " + Mathf.RoundToInt((float)r.refreshRateRatio.value) + "Hz");
             if (r.width  == Screen.currentResolution.width &&
-                r.height == Screen.currentResolution.height)
+                r.height == Screen.currentResolution.height &&
+                Mathf.RoundToInt((float)r.refreshRateRatio.value) ==
+                Mathf.RoundToInt((float)Screen.currentResolution.refreshRateRatio.value))
                 _currentResIdx = i;
         }
+
+        // Nadpisz zapisanym indeksem jeśli jest poprawny
+        if (GameData.Instance != null && GameData.Instance.resolutionIndex >= 0
+            && GameData.Instance.resolutionIndex < _resolutions.Length)
+            _currentResIdx = GameData.Instance.resolutionIndex;
 
         resDropdown.ClearOptions();
         resDropdown.AddOptions(options);
@@ -208,18 +234,70 @@ public class SettingsPanel : MonoBehaviour
         if (_resolutions == null || idx >= _resolutions.Length) return;
         var r = _resolutions[idx];
         Screen.SetResolution(r.width, r.height, Screen.fullScreenMode, r.refreshRateRatio);
+        if (GameData.Instance != null) { GameData.Instance.resolutionIndex = idx; GameData.Instance.Save(); }
+    }
+
+    // ── Reset danych ──────────────────────────────────────────────────────────
+    void ShowResetConfirm()
+    {
+        if (confirmPanel == null) return;
+        if (confirmTitle   != null) confirmTitle.text   = LocalizationManager.ResetConfirmTitle;
+        if (confirmBody    != null) confirmBody.text    = LocalizationManager.ResetConfirmBody;
+        if (confirmYesLabel != null) confirmYesLabel.text = LocalizationManager.ResetConfirmYes;
+        if (confirmNoLabel  != null) confirmNoLabel.text  = LocalizationManager.ResetConfirmNo;
+        confirmPanel.SetActive(true);
+    }
+
+    void HideResetConfirm()
+    {
+        if (confirmPanel != null) confirmPanel.SetActive(false);
+    }
+
+    void OnResetConfirmed()
+    {
+        HideResetConfirm();
+        if (GameData.Instance == null) return;
+        // Zachowaj ustawienia przed resetem
+        float  sfx   = GameData.Instance.sfxVolume;
+        float  music = GameData.Instance.musicVolume;
+        int    qual  = GameData.Instance.qualityLevel;
+        var    lang  = GameData.Instance.language;
+        int    resIdx= GameData.Instance.resolutionIndex;
+
+        GameData.Instance.ResetSave();
+
+        // Przywróć ustawienia
+        GameData.Instance.sfxVolume      = sfx;
+        GameData.Instance.musicVolume    = music;
+        GameData.Instance.qualityLevel   = qual;
+        GameData.Instance.language       = lang;
+        GameData.Instance.resolutionIndex= resIdx;
+        GameData.Instance.Save();
+
+        // Flash informacyjny na przycisku resetu
+        if (resetDataLabel != null)
+            StartCoroutine(FlashResetLabel());
+    }
+
+    System.Collections.IEnumerator FlashResetLabel()
+    {
+        string orig = resetDataLabel.text;
+        resetDataLabel.text = LocalizationManager.ResetDone;
+        yield return new WaitForSecondsRealtime(2f);
+        if (resetDataLabel != null) resetDataLabel.text = orig;
     }
 
     // ── Etykiety ──────────────────────────────────────────────────────────────
     void RefreshLabels()
     {
-        if (titleLabel != null) titleLabel.text = LocalizationManager.SettingsTitle;
-        if (sfxLabel   != null) sfxLabel.text   = LocalizationManager.SFXVolumeLabel;
-        if (musicLabel != null) musicLabel.text  = LocalizationManager.MusicVolumeLabel;
-        if (langLabel  != null) langLabel.text   = LocalizationManager.LanguageLabel;
-        if (gfxLabel   != null) gfxLabel.text    = LocalizationManager.GraphicsLabel;
-        if (resLabel   != null) resLabel.text    = LocalizationManager.ResolutionLabel;
-        if (backLabel  != null) backLabel.text   = LocalizationManager.Back;
+        if (titleLabel     != null) titleLabel.text     = LocalizationManager.SettingsTitle;
+        if (sfxLabel       != null) sfxLabel.text       = LocalizationManager.SFXVolumeLabel;
+        if (musicLabel     != null) musicLabel.text     = LocalizationManager.MusicVolumeLabel;
+        if (langLabel      != null) langLabel.text      = LocalizationManager.LanguageLabel;
+        if (gfxLabel       != null) gfxLabel.text       = LocalizationManager.GraphicsLabel;
+        if (resLabel       != null) resLabel.text       = LocalizationManager.ResolutionLabel;
+        if (backLabel      != null) backLabel.text      = LocalizationManager.Back;
+        if (resetDataLabel != null) resetDataLabel.text = LocalizationManager.ResetDataBtn;
 
         // Odśwież opcje grafiki (zmienił się język)
         if (gfxDropdown != null)

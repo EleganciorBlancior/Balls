@@ -52,4 +52,5 @@ public class ClassConfig : ScriptableObject
     public float      attackCooldown  = 2f;
     public float      collisionDamage = 10f;
     public Sprite     ballSprite;
+    public Sprite     weaponSprite;
 }

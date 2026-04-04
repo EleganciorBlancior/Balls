@@ -9,6 +9,12 @@ public abstract class WeaponBase : MonoBehaviour
     public float Cooldown       { get; protected set; } = 2f;
     public bool  IsReady        => _timer <= 0f;
     public float StatMultiplier { get; set; } = 1f;
+    public float ArenaScale     { get; set; } = 1f;
+
+    // Skaluj rozmiar pocisku proporcjonalnie do rozmiaru kulek
+    protected float ScaleBulletSize(float baseSize)  => baseSize * ArenaScale;
+    // Skaluj prędkość odwrotnie — mniejsze kulki = szybsze pociski żeby miały sens
+    protected float ScaleBulletSpeed(float baseSpeed) => baseSpeed / Mathf.Max(ArenaScale, 0.05f);
 
     // ── Mastery system ────────────────────────────────────────────────────────
     public bool HasPassive { get; private set; }

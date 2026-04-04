@@ -110,11 +110,11 @@ public class SwordWeapon : WeaponBase
 public class FireballWeapon : WeaponBase
 {
     const float DMG        = 30f;
-    const float SPEED      = 5f;
-    const float PASS_SPEED = 7f;
+    const float SPEED      = 9f;
+    const float PASS_SPEED = 11f;
     const float PASS_DMG   = 35f;
     const float ULT_DMG    = 90f;
-    const float ULT_SPEED  = 4f;
+    const float ULT_SPEED  = 7f;
 
     public override void Initialize(BallController ownerBall)
     { base.Initialize(ownerBall); Cooldown = 2.0f; }
@@ -138,8 +138,8 @@ public class FireballWeapon : WeaponBase
     void Fireball(BallController target, float dmg, float speed, float size)
     {
         Vector2 dir = (target.transform.position - owner.transform.position).normalized;
-        var go  = BallArenaUtils.CreateBulletGO(owner.transform.position, new Color(1f, 0.4f, 0.1f), size);
-        go.AddComponent<Projectile>().Initialize(owner, target, dir * speed, ScaleDmg(dmg),
+        var go  = BallArenaUtils.CreateBulletGO(owner.transform.position, new Color(1f, 0.4f, 0.1f), ScaleBulletSize(size));
+        go.AddComponent<Projectile>().Initialize(owner, target, dir * ScaleBulletSpeed(speed), ScaleDmg(dmg),
             ProjectileType.Fireball, 4f, 6f);
     }
 
@@ -154,9 +154,9 @@ public class FireballWeapon : WeaponBase
     protected override void FireUlt(BallController target)
     {
         Vector2 dir = (target.transform.position - owner.transform.position).normalized;
-        var go   = BallArenaUtils.CreateBulletGO(owner.transform.position, new Color(1f, 0.2f, 0f), 0.45f);
+        var go   = BallArenaUtils.CreateBulletGO(owner.transform.position, new Color(1f, 0.2f, 0f), ScaleBulletSize(0.45f));
         var proj = go.AddComponent<Projectile>();
-        proj.Initialize(owner, target, dir * ULT_SPEED, ScaleDmg(ULT_DMG), ProjectileType.Fireball, 5f, 8f);
+        proj.Initialize(owner, target, dir * ScaleBulletSpeed(ULT_SPEED), ScaleDmg(ULT_DMG), ProjectileType.Fireball, 5f, 8f);
         proj.OnHitBallCallback = (hitBall) =>
         {
             FirePuddle.Spawn(hitBall.transform.position, owner, ScaleDmg(12f), 5f);
@@ -220,9 +220,9 @@ public class ArrowWeapon : WeaponBase
         Vector2 dir = (target.transform.position - owner.transform.position).normalized;
         dir = Quaternion.Euler(0, 0, Random.Range(-8f, 8f)) * dir;
         var go = BallArenaUtils.CreateBulletGO(owner.transform.position + (Vector3)(dir * 0.6f),
-                     new Color(0.3f, 1f, 0.3f), 0.14f);
+                     new Color(0.3f, 1f, 0.3f), ScaleBulletSize(0.14f));
         var proj = go.AddComponent<Projectile>();
-        proj.Initialize(owner, target, dir * SPEED, ScaleDmg(DMG), ProjectileType.Arrow, 0f, 3f);
+        proj.Initialize(owner, target, dir * ScaleBulletSpeed(SPEED), ScaleDmg(DMG), ProjectileType.Arrow, 0f, 3f);
         if (heavyKnockback)
             proj.OnHitBallCallback = (b) => b.ApplyKnockback((b.transform.position - owner.transform.position).normalized, 14f);
         AudioController.Instance?.PlayProjectileFire();
@@ -583,8 +583,8 @@ public class ElementWeapon : WeaponBase
             case 1: col = new Color(0.4f, 0.8f, 1f); dmg = 18f; type = ProjectileType.Arrow;     break;
             default:col = new Color(1f, 1f, 0.2f);   dmg = 35f; type = ProjectileType.PoisonBolt;break;
         }
-        var go = BallArenaUtils.CreateBulletGO(owner.transform.position, col, 0.2f);
-        go.AddComponent<Projectile>().Initialize(owner, target, dir * spd, ScaleDmg(dmg * dmgMult), type,
+        var go = BallArenaUtils.CreateBulletGO(owner.transform.position, col, ScaleBulletSize(0.2f));
+        go.AddComponent<Projectile>().Initialize(owner, target, dir * ScaleBulletSpeed(spd), ScaleDmg(dmg * dmgMult), type,
             el == 0 ? 3f : 0f, 4f);
         owner.FlashColor(col, 0.15f);
     }
@@ -639,9 +639,9 @@ public class PriestWeapon : WeaponBase
         owner.Heal(heal);
         target.ApplyWeaken(wkPct, debDur);
         owner.FlashColor(new Color(1f, 1f, 0.6f), 0.2f);
-        var go = BallArenaUtils.CreateBulletGO(owner.transform.position, new Color(1f, 1f, 0.4f), 0.15f);
+        var go = BallArenaUtils.CreateBulletGO(owner.transform.position, new Color(1f, 1f, 0.4f), ScaleBulletSize(0.15f));
         go.AddComponent<Projectile>().Initialize(owner, target,
-            (target.transform.position - owner.transform.position).normalized * 4f,
+            (target.transform.position - owner.transform.position).normalized * ScaleBulletSpeed(4f),
             0f, ProjectileType.Arrow, 0f, 2f);
         AudioController.Instance?.PlayProjectileFire();
         StartCooldown(target);
@@ -650,9 +650,9 @@ public class PriestWeapon : WeaponBase
     protected override void FireUlt(BallController target)
     {
         Vector2 dir = (target.transform.position - owner.transform.position).normalized;
-        var go  = BallArenaUtils.CreateBulletGO(owner.transform.position, new Color(1f, 1f, 0.5f), 0.2f);
+        var go  = BallArenaUtils.CreateBulletGO(owner.transform.position, new Color(1f, 1f, 0.5f), ScaleBulletSize(0.2f));
         var proj = go.AddComponent<Projectile>();
-        proj.Initialize(owner, target, dir * ULT_SPEED, ScaleDmg(ULT_DMG), ProjectileType.Arrow,
+        proj.Initialize(owner, target, dir * ScaleBulletSpeed(ULT_SPEED), ScaleDmg(ULT_DMG), ProjectileType.Arrow,
             6f, 5f, isHoly: true);
         owner.FlashColor(Color.white, 0.3f);
         AudioController.Instance?.PlayProjectileFire();
@@ -1142,9 +1142,9 @@ public class MariachWeapon : WeaponBase
         Vector2 aimPos = PredictIntercept(target, speed);
         Vector2 dir    = (aimPos - (Vector2)owner.transform.position).normalized;
         var go   = BallArenaUtils.CreateBulletGO(owner.transform.position + (Vector3)(dir * 0.6f),
-            new Color(1f, 0.55f, 0.05f), 0.16f);
+            new Color(1f, 0.55f, 0.05f), ScaleBulletSize(0.16f));
         var proj = go.AddComponent<Projectile>();
-        proj.Initialize(owner, target, dir * speed, dmg, ProjectileType.Arrow, 0f, 3.5f);
+        proj.Initialize(owner, target, dir * ScaleBulletSpeed(speed), dmg, ProjectileType.Arrow, 0f, 3.5f);
         if (withBuff) proj.OnHitCallback = OnDamageDealt;
         owner.FlashColor(new Color(1f, 0.6f, 0.1f), 0.12f);
     }

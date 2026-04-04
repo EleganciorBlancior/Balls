@@ -179,12 +179,11 @@ public class PaintShopUI : MonoBehaviour
         foreach (var cfg in allClassConfigs)
         {
             if (cfg == null || !mergedGroups.ContainsKey(cfg.ballClass)) continue;
-            int cnt = mergedGroups[cfg.ballClass];
             var row = SpawnRow();
             if (row == null) continue;
             row.Setup(new Color(1f, 0.85f, 0.1f),
                       LocalizationManager.SuperPrefix + LocalizationManager.GetClassName(cfg.ballClass),
-                      "×" + cnt);
+                      "");
             var cap = cfg;
             if (row.btn != null) row.btn.onClick.AddListener(() => SelectBall(cap));
         }

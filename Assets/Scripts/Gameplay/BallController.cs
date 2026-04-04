@@ -42,6 +42,10 @@ public class BallController : MonoBehaviour
     private Vector3        baseScale;
     private SpriteRenderer glowSR;
     private float          glowPulse;
+    private GameObject     _weaponSpriteGO;
+    private BallController _weaponTarget;
+    private BallController _nearestCache;
+    private float          _nearestCacheTimer;
 
     public float ScaledAttackRange { get; set; }
     public float SpeedMultiplier   { get; set; } = 1f;
@@ -85,7 +89,8 @@ public class BallController : MonoBehaviour
 
         // Rozmiar: radius z configa * scaleMult areny * ewentualne skalowanie scalenia
         float mergeBonus     = statMult > 1f ? Mathf.Pow(statMult, 0.15f) : 1f;
-        baseScale            = Vector3.one * cfg.radius * 2f * scaleMult * mergeBonus;
+        _baseScaleSize       = cfg.radius * 2f * scaleMult * mergeBonus;
+        baseScale            = Vector3.one * _baseScaleSize;
         transform.localScale = baseScale;
         // Minimalny range = średnica tej kulki + bufor, żeby scalone kulki zawsze mogły atakować
         float ballR = cfg.radius * scaleMult * mergeBonus;
@@ -94,7 +99,7 @@ public class BallController : MonoBehaviour
         Rb.gravityScale           = 0f;
         Rb.linearDamping          = 0f;
         Rb.angularDamping         = 0f;
-        Rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+        Rb.collisionDetectionMode = CollisionDetectionMode2D.Discrete;
         Rb.constraints            = RigidbodyConstraints2D.FreezeRotation;
 
         var phyMat         = new PhysicsMaterial2D { bounciness = 1f, friction = 0f };
@@ -143,7 +148,8 @@ public class BallController : MonoBehaviour
         float speed = cfg.moveSpeed / scaleMult * 0.6f;
 
         CreateGlowObject();
-        AttachWeapon(cfg.ballClass, statMult, speed);
+        CreateWeaponSprite(cfg);
+        AttachWeapon(cfg.ballClass, statMult, speed, scaleMult);
 
         float ang         = UnityEngine.Random.Range(0f, Mathf.PI * 2f);
         Rb.linearVelocity = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang)) * speed;
@@ -163,7 +169,20 @@ public class BallController : MonoBehaviour
         glowSR.sortingOrder = -1;
     }
 
-    void AttachWeapon(BallClass cls, float statMult, float speed)
+    void CreateWeaponSprite(ClassConfig cfg)
+    {
+        if (cfg.weaponSprite == null) return;
+        _weaponSpriteGO = new GameObject("WeaponSprite");
+        _weaponSpriteGO.transform.SetParent(transform);
+        _weaponSpriteGO.transform.localPosition = Vector3.zero;
+        _weaponSpriteGO.transform.localRotation = Quaternion.identity;
+        _weaponSpriteGO.transform.localScale    = Vector3.one;
+        var wsr         = _weaponSpriteGO.AddComponent<SpriteRenderer>();
+        wsr.sprite      = cfg.weaponSprite;
+        wsr.sortingOrder = 2;
+    }
+
+    void AttachWeapon(BallClass cls, float statMult, float speed, float arenaScale)
     {
         switch (cls)
         {
@@ -186,6 +205,7 @@ public class BallController : MonoBehaviour
         }
         weapon.Initialize(this);
         weapon.StatMultiplier = statMult;
+        weapon.ArenaScale     = arenaScale;
         bool hasPassive = MergeLevel >= 5;
         bool hasMastery = GameData.Instance?.HasMastery(cls) ?? false;
         weapon.SetMasteryFlags(hasPassive, hasMastery);
@@ -193,13 +213,54 @@ public class BallController : MonoBehaviour
 
     public void SetInvincibleGlow(bool on) => invincible = on;
 
+    // Granice areny — ustawiane przez ArenaGameManager
+    public static float ArenaHalf = 9f;
+
+    private float _dynamicScaleMult = 1f;
+    private float _baseScaleSize;   // bazowy rozmiar bez dynamic mult
+
+    /// <summary>Płynnie zmienia skalę kulki (wywoływane przez ArenaGameManager gdy giną inne kulki).</summary>
+    public void SetDynamicScale(float newMult)
+    {
+        _dynamicScaleMult = newMult;
+        float s = _baseScaleSize * newMult;
+        transform.localScale = Vector3.one * s;
+        float ballR = s * 0.5f;
+        ScaledAttackRange = Mathf.Max(Config.attackRange * s / (Config.radius * 2f), ballR * 2f + 0.6f);
+        if (weapon != null) weapon.ArenaScale = s / (Config.radius * 2f);
+    }
+
+    private void FixedUpdate()
+    {
+        if (!IsAlive || Rb == null) return;
+        float r    = transform.localScale.x * 0.5f;
+        float lim  = ArenaHalf - r - 0.05f;  // mały margines żeby nie wchodzić w ramkę
+        Vector2 pos = Rb.position;
+        Vector2 vel = Rb.linearVelocity;
+        bool clamped = false;
+        if (pos.x < -lim) { pos.x = -lim; vel.x =  Mathf.Abs(vel.x); clamped = true; }
+        if (pos.x >  lim) { pos.x =  lim; vel.x = -Mathf.Abs(vel.x); clamped = true; }
+        if (pos.y < -lim) { pos.y = -lim; vel.y =  Mathf.Abs(vel.y); clamped = true; }
+        if (pos.y >  lim) { pos.y =  lim; vel.y = -Mathf.Abs(vel.y); clamped = true; }
+        if (clamped) { Rb.position = pos; Rb.linearVelocity = vel; }
+    }
+
     private void Update()
     {
         if (!IsAlive) return;
         HandlePoison(); HandleBleed(); HandleWeaken(); HandleSlowness(); HandleFlash(); HandleGlow();
-        HandleAI(); ClampSpeed();
+        HandleAI(); ClampSpeed(); RotateWeaponSprite();
         if (_psychicRepelTimer > 0f) _psychicRepelTimer -= Time.deltaTime;
         if (healthBar != null) healthBar.UpdateBar(currentHP, transform.position);
+    }
+
+    void RotateWeaponSprite()
+    {
+        if (_weaponSpriteGO == null) return;
+        if (_weaponTarget == null || !_weaponTarget.IsAlive) return;
+        Vector2 dir   = (Vector2)(_weaponTarget.transform.position - transform.position);
+        float   angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
+        _weaponSpriteGO.transform.rotation = Quaternion.Euler(0f, 0f, angle);
     }
 
     void HandleAI()
@@ -207,6 +268,7 @@ public class BallController : MonoBehaviour
         if (tauntLeft > 0f) tauntLeft -= Time.deltaTime;
         BallController target = tauntLeft > 0f && tauntTarget != null && tauntTarget.IsAlive
             ? tauntTarget : FindNearest();
+        _weaponTarget = target;
         if (target == null) return;
         float effectiveRange = ScaledAttackRange;
         if (rangeReductLeft > 0f && IsRangedClass())
@@ -233,14 +295,23 @@ public class BallController : MonoBehaviour
 
     BallController FindNearest()
     {
-        var all = FindObjectsByType<BallController>(FindObjectsSortMode.None);
+        // Cache przez 0.2s żeby nie szukać co klatkę przy 10k kulek
+        _nearestCacheTimer -= Time.deltaTime;
+        if (_nearestCacheTimer > 0f && _nearestCache != null && _nearestCache.IsAlive)
+            return _nearestCache;
+
+        var list = ArenaGameManager.AliveBalls;
         BallController nearest = null; float minD = float.MaxValue;
-        foreach (var b in all)
+        for (int i = 0; i < list.Count; i++)
         {
+            var b = list[i];
             if (b == this || !b.IsAlive) continue;
-            float d = Vector2.Distance(transform.position, b.transform.position);
+            float d = (b.transform.position - transform.position).sqrMagnitude;
             if (d < minD) { minD = d; nearest = b; }
         }
+
+        _nearestCache      = nearest;
+        _nearestCacheTimer = 0.2f;
         return nearest;
     }
 

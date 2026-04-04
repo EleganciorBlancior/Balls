@@ -53,7 +53,9 @@ public class ArenaGameManager : MonoBehaviour
     // ── Prywatne ──────────────────────────────────────────────────────────────
     private readonly List<BallController> balls = new List<BallController>();
     private int               aliveCount;
-    private PhysicsMaterial2D bounceMat;
+
+    /// <summary>Współdzielona lista żywych kulek — używana przez BallController.FindNearest().</summary>
+    public static List<BallController> AliveBalls { get; private set; } = new List<BallController>();
     private float             ballScaleMult;
     private float             mechanicTimer;
 
@@ -76,13 +78,12 @@ public class ArenaGameManager : MonoBehaviour
         }
 
         var tier      = GameData.Instance.CurrentTier;
-        ballScaleMult = tier.ballScaleMultiplier;
-        bounceMat     = new PhysicsMaterial2D("Bounce") { bounciness = 1f, friction = 0f };
-
+        ballScaleMult = tier.ballScaleMultiplier; // zostanie przeliczony w SpawnBalls
         int pullLvl   = GameData.Instance.pullUpgradeLevel;
         _pullForce    = GameData.GetPullForce(pullLvl);
         _pullDuration = GameData.GetPullDuration(pullLvl);
 
+        BallController.ArenaHalf = arenaHalfSize;
         SetupBackground(tier);
         SetupFrame();
         SetupWalls();
@@ -139,33 +140,43 @@ public class ArenaGameManager : MonoBehaviour
     }
 
     // ── Ściany ────────────────────────────────────────────────────────────────
-    void SetupWalls()
-    {
-        float s = arenaHalfSize;
-        CreateWall("Top",    new Vector2(-s, s),  new Vector2(s, s));
-        CreateWall("Bottom", new Vector2(-s, -s), new Vector2(s, -s));
-        CreateWall("Left",   new Vector2(-s, -s), new Vector2(-s, s));
-        CreateWall("Right",  new Vector2(s, -s),  new Vector2(s, s));
-    }
-
-    void CreateWall(string id, Vector2 a, Vector2 b)
-    {
-        var go = new GameObject("Wall_" + id); go.transform.parent = transform;
-        var rb = go.AddComponent<Rigidbody2D>(); rb.bodyType = RigidbodyType2D.Static;
-        var ec = go.AddComponent<EdgeCollider2D>();
-        ec.SetPoints(new List<Vector2> { a, b });
-        ec.sharedMaterial = bounceMat; rb.sharedMaterial = bounceMat;
-    }
+    // Odbicia obsługuje BallController.FixedUpdate — EdgeCollidery nie są potrzebne
+    void SetupWalls() { }
 
     // ── Spawn ─────────────────────────────────────────────────────────────────
+    // Generuje pozycje siatki dla N kulek w obszarze ±s
+    Vector2[] BuildGridPositions(int count, float s)
+    {
+        int cols   = Mathf.CeilToInt(Mathf.Sqrt(count));
+        int rows   = Mathf.CeilToInt((float)count / cols);
+        float stepX = cols > 1 ? s * 2f / (cols - 1) : 0f;
+        float stepY = rows > 1 ? s * 2f / (rows - 1) : 0f;
+        var positions = new Vector2[count];
+        int idx = 0;
+        for (int r = 0; r < rows && idx < count; r++)
+            for (int c = 0; c < cols && idx < count; c++, idx++)
+                positions[idx] = new Vector2(-s + c * stepX, -s + r * stepY)
+                               + Random.insideUnitCircle * Mathf.Min(stepX, stepY) * 0.3f;
+        return positions;
+    }
+
     void SpawnBalls()
     {
         balls.Clear();
-        float s = arenaHalfSize * 0.75f;
+        AliveBalls.Clear();
+        float s = arenaHalfSize * 0.82f;
         int num = 1;
 
         if (GameData.Instance != null)
         {
+            // Dynamiczne skalowanie: mało kulek = większe, dużo kulek = minimum tiera
+            int   total        = Mathf.Max(GameData.Instance.TotalOwnedBalls(), 1);
+            float densityScale = 0.75f * Mathf.Sqrt(123f / total);
+            float minScale     = GameData.Instance.CurrentTier.ballScaleMultiplier;
+            ballScaleMult      = Mathf.Clamp(densityScale, minScale, 1.0f);
+
+            // Zbierz kolejkę do spawnu
+            var spawnQueue = new System.Collections.Generic.List<(ClassConfig cfg, float stat, int gold, int ml)>();
             var baseClasses = new BallClass[]
             {
                 BallClass.Warrior, BallClass.Mage, BallClass.Archer,
@@ -175,26 +186,39 @@ public class ArenaGameManager : MonoBehaviour
             {
                 if (GameData.Instance.consumedBaseBalls.Contains(cls)) continue;
                 var cfg = FindCfg(cls);
-                if (cfg != null) SpawnOne(cfg, num++, s, 1f, 1, 0);
+                if (cfg != null) spawnQueue.Add((cfg, 1f, 1, 0));
             }
-
             foreach (var merged in GameData.Instance.mergedBalls)
             {
                 var cfg = FindCfg(merged.ballClass);
-                if (cfg != null)
-                    SpawnOne(cfg, num++, s, merged.statMultiplier, merged.goldMultiplier, merged.mergeLevel);
+                if (cfg != null) spawnQueue.Add((cfg, merged.statMultiplier, merged.goldMultiplier, merged.mergeLevel));
             }
-
             foreach (var cls in GameData.Instance.purchasedBalls)
             {
                 var cfg = FindCfg(cls);
-                if (cfg != null) SpawnOne(cfg, num++, s, 1f, 1, 0);
+                if (cfg != null) spawnQueue.Add((cfg, 1f, 1, 0));
+            }
+
+            // Generuj siatkę dla całej liczby kulek
+            var grid = BuildGridPositions(spawnQueue.Count, s);
+            // Przelosuj kolejność żeby klasy się nie skupiały w jednym miejscu
+            for (int i = spawnQueue.Count - 1; i > 0; i--)
+            {
+                int j = Random.Range(0, i + 1);
+                (grid[i], grid[j]) = (grid[j], grid[i]);
+            }
+
+            for (int i = 0; i < spawnQueue.Count; i++)
+            {
+                var (cfg, stat, gold, ml) = spawnQueue[i];
+                SpawnOne(cfg, num++, grid[i], stat, gold, ml);
             }
         }
         else
         {
+            var grid = BuildGridPositions(Mathf.Min(5, classConfigs.Count), s);
             for (int i = 0; i < 5 && i < classConfigs.Count; i++)
-                SpawnOne(classConfigs[i], num++, s, 1f, 1, 0);
+                SpawnOne(classConfigs[i], num++, grid[i], 1f, 1, 0);
         }
 
         aliveCount = balls.Count;
@@ -205,10 +229,9 @@ public class ArenaGameManager : MonoBehaviour
         => classConfigs.Find(c => c.ballClass == cls)
         ?? Resources.Load<ClassConfig>("ClassConfigs/" + cls);
 
-    void SpawnOne(ClassConfig cfg, int number, float s,
+    void SpawnOne(ClassConfig cfg, int number, Vector2 pos,
                   float statMult, int goldMult, int mergeLevel)
     {
-        Vector2 pos = new Vector2(Random.Range(-s, s), Random.Range(-s, s));
         var go = new GameObject("Ball_" + cfg.className + "_" + number);
         go.transform.position = pos;
         go.AddComponent<Rigidbody2D>();
@@ -220,6 +243,7 @@ public class ArenaGameManager : MonoBehaviour
         ball.BallNumber = number;
         ball.OnDeath += HandleDeath;
         balls.Add(ball);
+        AliveBalls.Add(ball);
 
         AddLabel(go, number, mergeLevel);
     }
@@ -254,11 +278,26 @@ public class ArenaGameManager : MonoBehaviour
     }
 
     // ── Śmierć / koniec ───────────────────────────────────────────────────────
-    void HandleDeath(BallController killer)
+    void HandleDeath(BallController dead)
     {
+        AliveBalls.Remove(dead);
         aliveCount--;
         UpdateUI();
+        UpdateDynamicScale();
         if (aliveCount <= 1) EndGame();
+    }
+
+    void UpdateDynamicScale()
+    {
+        // Dynamiczne skalowanie tylko na dwóch największych arenach (tier 4 i 5)
+        if (GameData.Instance == null || GameData.Instance.arenaTierIndex < 4) return;
+
+        int alive = AliveBalls.Count;
+        if (alive < 50) return;
+        float densityMult = 0.75f * Mathf.Sqrt(123f / Mathf.Max(alive, 1));
+        float mult        = Mathf.Clamp(densityMult / Mathf.Max(ballScaleMult, 0.001f), 1f, 6f);
+        foreach (var b in AliveBalls)
+            if (b != null && b.IsAlive) b.SetDynamicScale(mult);
     }
 
     void EndGame()
@@ -336,6 +375,7 @@ public class ArenaGameManager : MonoBehaviour
         if (_gameEnded) return;
 
         UpdateUI();
+        if (Time.frameCount % 10 == 0) KillOutOfBounds();
         if (_escPaused) return;
 
         // Przyspieszenie kulek po czasie
@@ -354,6 +394,18 @@ public class ArenaGameManager : MonoBehaviour
                 _accelStepTimer = 0f;
                 TriggerAccelerationStep();
             }
+        }
+    }
+
+    void KillOutOfBounds()
+    {
+        float limit = arenaHalfSize + 1.5f;
+        foreach (var b in balls)
+        {
+            if (!b.IsAlive) continue;
+            var p = b.transform.position;
+            if (Mathf.Abs(p.x) > limit || Mathf.Abs(p.y) > limit)
+                b.TakeHolyDamage(float.MaxValue, null);
         }
     }
 

@@ -57,8 +57,8 @@ public class KillFeed : MonoBehaviour
         if (_container == null) return;
         while (_entries.Count >= maxEntries) RemoveEntry(_entries[0]);
 
-        string killerLabel = killer.Config.className + " #" + killer.BallNumber;
-        string victimLabel = victim.Config.className + " #" + victim.BallNumber;
+        string killerLabel = LocalizationManager.GetClassName(killer.Config.ballClass) + " #" + killer.BallNumber;
+        string victimLabel = LocalizationManager.GetClassName(victim.Config.ballClass)  + " #" + victim.BallNumber;
         Color  killerColor = killer.BaseColor;
         Color  victimColor = victim.BaseColor;
 

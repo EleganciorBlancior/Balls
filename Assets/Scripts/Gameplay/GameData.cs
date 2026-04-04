@@ -47,10 +47,11 @@ public class GameData : MonoBehaviour
     [HideInInspector] public bool                    paintShopUnlocked   = false;
 
     // ── Ustawienia ────────────────────────────────────────────────────────────
-    [HideInInspector] public float        sfxVolume    = 1f;
-    [HideInInspector] public float        musicVolume  = 0.4f;
-    [HideInInspector] public int          qualityLevel = 1;
-    [HideInInspector] public GameLanguage language     = GameLanguage.EN;
+    [HideInInspector] public float        sfxVolume       = 1f;
+    [HideInInspector] public float        musicVolume     = 0.4f;
+    [HideInInspector] public int          qualityLevel    = 1;
+    [HideInInspector] public GameLanguage language        = GameLanguage.EN;
+    [HideInInspector] public int          resolutionIndex = -1;
 
     // ── Ulepszenie Pulla ──────────────────────────────────────────────────────
     [HideInInspector] public int pullUpgradeLevel = 0;
@@ -61,9 +62,9 @@ public class GameData : MonoBehaviour
         switch (currentLevel)
         {
             case 0: return 100;
-            case 1: return 200;
-            case 2: return 400;
-            case 3: return 800;
+            case 1: return 2000;
+            case 2: return 40000;
+            case 3: return 120000;
             default: return 0;
         }
     }
@@ -96,12 +97,12 @@ public class GameData : MonoBehaviour
     {
         _defaultTiers = new ArenaTier[]
         {
-            new ArenaTier { tierName="Mała (S)",          ballScaleMultiplier=1.000f, backgroundScale=18f, upgradeCost=  80, maxExtraBalls=3  },
-            new ArenaTier { tierName="Średnia (M)",       ballScaleMultiplier=0.875f, backgroundScale=24f, upgradeCost= 150, maxExtraBalls=23  },
-            new ArenaTier { tierName="Duża (L)",          ballScaleMultiplier=0.750f, backgroundScale=32f, upgradeCost= 1250, maxExtraBalls=123  },
-            new ArenaTier { tierName="Gigant (XL)",       ballScaleMultiplier=0.625f, backgroundScale=42f, upgradeCost=7500, maxExtraBalls=623  },
-            new ArenaTier { tierName="Olbrzym (XXL)", ballScaleMultiplier=0.500f, backgroundScale=54f, upgradeCost=50000, maxExtraBalls=3123   },
-            new ArenaTier { tierName="Twoja stara (XXXL)",   ballScaleMultiplier=0.375f, backgroundScale=68f, upgradeCost=250000, maxExtraBalls=9999 },
+            new ArenaTier { tierName="Mała (S)",           ballScaleMultiplier=1.000f, backgroundScale=18f, upgradeCost=   80, maxExtraBalls=3    },
+            new ArenaTier { tierName="Średnia (M)",        ballScaleMultiplier=0.875f, backgroundScale=24f, upgradeCost=  150, maxExtraBalls=23   },
+            new ArenaTier { tierName="Duża (L)",           ballScaleMultiplier=0.750f, backgroundScale=32f, upgradeCost= 1250, maxExtraBalls=123  },
+            new ArenaTier { tierName="Gigant (XL)",        ballScaleMultiplier=0.333f, backgroundScale=42f, upgradeCost= 7500, maxExtraBalls=623  },
+            new ArenaTier { tierName="Olbrzym (XXL)",      ballScaleMultiplier=0.149f, backgroundScale=54f, upgradeCost=50000, maxExtraBalls=3123 },
+            new ArenaTier { tierName="Twoja stara (XXXL)", ballScaleMultiplier=0.083f, backgroundScale=68f, upgradeCost=250000, maxExtraBalls=9999},
         };
     }
 
@@ -296,25 +297,28 @@ public class GameData : MonoBehaviour
     public void RecordDamageDealt(BallClass cls, float dmg)
     {
         var c = GetOrCreateCrowns(cls);
+        if (c.crownDamageDealt) return;
         c.totalDamageDealt += dmg;
-        if (!c.crownDamageDealt && c.totalDamageDealt >= CROWN_DMG_DEALT_THRESHOLD)
-            c.crownDamageDealt = true;
+        if (c.totalDamageDealt >= CROWN_DMG_DEALT_THRESHOLD)
+        { c.totalDamageDealt = CROWN_DMG_DEALT_THRESHOLD; c.crownDamageDealt = true; }
     }
 
     public void RecordDamageTaken(BallClass cls, float dmg)
     {
         var c = GetOrCreateCrowns(cls);
+        if (c.crownDamageTaken) return;
         c.totalDamageTaken += dmg;
-        if (!c.crownDamageTaken && c.totalDamageTaken >= CROWN_DMG_TAKEN_THRESHOLD)
-            c.crownDamageTaken = true;
+        if (c.totalDamageTaken >= CROWN_DMG_TAKEN_THRESHOLD)
+        { c.totalDamageTaken = CROWN_DMG_TAKEN_THRESHOLD; c.crownDamageTaken = true; }
     }
 
     public void RecordWin(BallClass cls)
     {
         var c = GetOrCreateCrowns(cls);
+        if (c.crownWins) return;
         c.totalWins++;
-        if (!c.crownWins && c.totalWins >= CROWN_WINS_THRESHOLD)
-            c.crownWins = true;
+        if (c.totalWins >= CROWN_WINS_THRESHOLD)
+        { c.totalWins = CROWN_WINS_THRESHOLD; c.crownWins = true; }
     }
 
     // ── Zapis / Odczyt ────────────────────────────────────────────────────────
@@ -405,6 +409,7 @@ public class SaveData
     public int   qualityLevel;
     public GameLanguage language;
     public int   pullUpgradeLevel;
+    public int   resolutionIndex;
 
     public List<BallClass>         purchasedBalls;
     public List<MergedBallData>    mergedBalls;
@@ -424,6 +429,7 @@ public class SaveData
         qualityLevel       = d.qualityLevel;
         language           = d.language;
         pullUpgradeLevel   = d.pullUpgradeLevel;
+        resolutionIndex    = d.resolutionIndex;
         purchasedBalls     = new List<BallClass>(d.purchasedBalls);
         mergedBalls        = new List<MergedBallData>(d.mergedBalls);
         consumedBaseBalls  = new List<BallClass>(d.consumedBaseBalls);
@@ -441,6 +447,7 @@ public class SaveData
         d.qualityLevel       = qualityLevel;
         d.language           = language;
         d.pullUpgradeLevel   = pullUpgradeLevel;
+        d.resolutionIndex    = resolutionIndex;
         d.purchasedBalls     = purchasedBalls     ?? new List<BallClass>();
         d.mergedBalls        = mergedBalls        ?? new List<MergedBallData>();
         d.consumedBaseBalls  = consumedBaseBalls  ?? new List<BallClass>();
