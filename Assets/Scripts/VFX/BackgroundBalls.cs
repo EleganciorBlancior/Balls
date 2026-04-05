@@ -428,6 +428,8 @@ public class BackgroundBalls : MonoBehaviour
 
     void HandleBallDied(Vector3 pos, Color col)
     {
+        return; // wyłączone — reaktywne tło za drogie przy dużej ilości kulek
+
         // Pobliskie kulki tła lekko odskakują od miejsca śmierci
         foreach (var b in _balls)
         {
@@ -457,6 +459,7 @@ public class BackgroundBalls : MonoBehaviour
 
     void HandleAoEFired(Vector3 pos, Color col, float radius)
     {
+        return;
         // Najbliższe kulki tła lekko rozpraszają się od centrum AoE
         foreach (var b in _balls)
         {
@@ -471,6 +474,7 @@ public class BackgroundBalls : MonoBehaviour
 
     void HandleWallBlast()
     {
+        return;
         foreach (var b in _balls)
         {
             if (b.go == null) continue;

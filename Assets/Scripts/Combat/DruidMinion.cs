@@ -10,6 +10,8 @@ public class DruidMinion : MonoBehaviour
     private Color          _dotColor = new Color(1f, 1f, 0.3f, 0.95f);
     private const float    SPEED    = 5.5f;
     private const float    STEER    = 6f;
+    private BallController _cachedTarget;
+    private float          _targetTimer;
 
     public void Initialize(BallController parentBall, float dmg, Color dotColor = default)
     {
@@ -68,16 +70,24 @@ public class DruidMinion : MonoBehaviour
         if (_spinPivot != null)
             _spinPivot.transform.Rotate(0f, 0f, 340f * Time.fixedDeltaTime);
 
-        // Naprowadzanie przez siłę (nie przez teleport)
-        var all = FindObjectsByType<BallController>(FindObjectsSortMode.None);
-        BallController nearest = null; float minD = float.MaxValue;
-        foreach (var b in all)
+        // Naprowadzanie przez siłę (cache target co 0.3s)
+        _targetTimer -= Time.fixedDeltaTime;
+        if (_targetTimer <= 0f || _cachedTarget == null || !_cachedTarget.IsAlive)
         {
-            if (b == parent || !b.IsAlive) continue;
-            float d = Vector2.Distance(transform.position, b.transform.position);
-            if (d < minD) { minD = d; nearest = b; }
+            _targetTimer = 0.3f;
+            _cachedTarget = null;
+            var all = ArenaGameManager.AliveBalls;
+            float minD = float.MaxValue;
+            for (int i = 0; i < all.Count; i++)
+            {
+                var b = all[i];
+                if (b == parent || !b.IsAlive) continue;
+                float d = (b.transform.position - transform.position).sqrMagnitude;
+                if (d < minD) { minD = d; _cachedTarget = b; }
+            }
         }
-        if (nearest == null) return;
+        if (_cachedTarget == null) return;
+        var nearest = _cachedTarget;
 
         Vector2 desired = ((Vector2)nearest.transform.position - (Vector2)transform.position).normalized * SPEED;
         rb.AddForce((desired - rb.linearVelocity) * STEER, ForceMode2D.Force);
@@ -91,7 +101,7 @@ public class DruidMinion : MonoBehaviour
         var ball = col.gameObject.GetComponent<BallController>();
         if (ball == null || ball == parent || !ball.IsAlive) return;
         ball.TakeDamage(damage, parent);
-        HitParticles.Spawn(transform.position, new Color(0.3f, 0.9f, 0.2f));
+        if (BallController.IsVfxAllowed()) HitParticles.Spawn(transform.position, new Color(0.3f, 0.9f, 0.2f), BallController.VfxHitCount);
         Destroy(gameObject);
     }
 }

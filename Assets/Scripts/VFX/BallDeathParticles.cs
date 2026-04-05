@@ -5,21 +5,25 @@ using UnityEngine;
 public class BallDeathParticles : MonoBehaviour
 {
     // Wywołaj: BallDeathParticles.Spawn(position, color)
-    public static void Spawn(Vector3 position, Color color)
+    public static void Spawn(Vector3 position, Color color, int count = 40)
     {
+        if (count <= 0) return;
         var go = new GameObject("DeathFX");
         go.transform.position = position;
         var fx = go.AddComponent<BallDeathParticles>();
-        fx.color = color;
+        fx.color  = color;
+        fx._count = count;
         fx.Play();
         Destroy(go, 2f);
     }
 
     private Color color;
+    private int   _count = 40;
     private ParticleSystem ps;
 
     void Play()
     {
+        float s = Mathf.Clamp(BallController.VfxScale, 0.15f, 2f);
         ps = gameObject.AddComponent<ParticleSystem>();
 
         // Zatrzymaj auto-play żeby najpierw skonfigurować
@@ -30,8 +34,8 @@ public class BallDeathParticles : MonoBehaviour
         main.duration         = 0.3f;
         main.loop             = false;
         main.startLifetime    = new ParticleSystem.MinMaxCurve(0.4f, 1.0f);
-        main.startSpeed       = new ParticleSystem.MinMaxCurve(2f, 8f);
-        main.startSize        = new ParticleSystem.MinMaxCurve(0.05f, 0.25f);
+        main.startSpeed       = new ParticleSystem.MinMaxCurve(4f * s, 16f * s);
+        main.startSize        = new ParticleSystem.MinMaxCurve(0.1f * s, 0.5f * s);
         main.startColor       = new ParticleSystem.MinMaxGradient(color, Color.white);
         main.gravityModifier  = 0.3f;
         main.simulationSpace  = ParticleSystemSimulationSpace.World;
@@ -39,13 +43,13 @@ public class BallDeathParticles : MonoBehaviour
         // ── Emission ────────────────────────────────────────────────────────
         var emission          = ps.emission;
         emission.rateOverTime = 0;
-        emission.SetBursts(new[] { new ParticleSystem.Burst(0f, 40) });
+        emission.SetBursts(new[] { new ParticleSystem.Burst(0f, _count) });
 
         // ── Shape: kula ─────────────────────────────────────────────────────
         var shape             = ps.shape;
         shape.enabled         = true;
         shape.shapeType       = ParticleSystemShapeType.Circle;
-        shape.radius          = 0.3f;
+        shape.radius          = 0.6f * s;
 
         // ── Color over lifetime: zanika ──────────────────────────────────────
         var col               = ps.colorOverLifetime;

@@ -72,6 +72,8 @@ public class AttackRingFX : MonoBehaviour
     /// Główna fala ataku AoE: pierścień rozszerza się ease-out, środek blednie pierwszy.
     public static void SpawnWave(Vector3 pos, Color col, float maxRadius, float duration = 0.38f)
     {
+        if (BallController.VfxAttackChance <= 0f) return;
+        if (BallController.VfxAttackChance < 1f && UnityEngine.Random.value > BallController.VfxAttackChance) return;
         var go = new GameObject("AoEWaveFX");
         go.transform.position = pos;
         var fx = go.AddComponent<AttackRingFX>();

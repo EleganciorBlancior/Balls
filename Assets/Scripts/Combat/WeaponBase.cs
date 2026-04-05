@@ -55,7 +55,9 @@ public abstract class WeaponBase : MonoBehaviour
     /// Counts attacks and fires ULT every 5th attack (if HasUlt).</summary>
     protected void StartCooldown(BallController target = null)
     {
-        _timer = Cooldown;
+        // Wolniejsze ataki proporcjonalnie do obciążenia (AiSkip=1→normal, 4→×3)
+        float mult = BallController.AiSkip > 1 ? 1f + BallController.AiSkip * 0.5f : 1f;
+        _timer = Cooldown * mult;
         _attackCount++;
         if (HasUlt && _attackCount % 5 == 0 && target != null)
             FireUlt(target);

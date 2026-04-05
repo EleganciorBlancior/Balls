@@ -30,7 +30,9 @@ public class BallController : MonoBehaviour
     private float          _totalDmgReduced = 0f;
     private float          weakenMult  = 1f;
     private float          weakenLeft  = 0f;
-    public  bool           invincible  = false;
+    public  bool           invincible      = false; // od broni (ShieldWeapon, respawn buff)
+    public  bool           ChampionShield  = false; // od ArenaGameManager — bronie tego nie dotykają
+    private bool           IsInvincible    => invincible || ChampionShield;
     private int            goldReward  = 20;
 
     private SpriteRenderer sr;
@@ -87,14 +89,14 @@ public class BallController : MonoBehaviour
         goldReward  = 20 * goldMult;
         DisplayName = displayName ?? cfg.className;
 
-        // Rozmiar: radius z configa * scaleMult areny * ewentualne skalowanie scalenia
-        float mergeBonus     = statMult > 1f ? Mathf.Pow(statMult, 0.15f) : 1f;
-        _baseScaleSize       = cfg.radius * 2f * scaleMult * mergeBonus;
+        // Rozmiar: radius z configa * scaleMult areny — identyczny dla real i ghost
+        _baseScaleSize       = cfg.radius * 2f * scaleMult;
         baseScale            = Vector3.one * _baseScaleSize;
         transform.localScale = baseScale;
-        // Minimalny range = średnica tej kulki + bufor, żeby scalone kulki zawsze mogły atakować
-        float ballR = cfg.radius * scaleMult * mergeBonus;
-        ScaledAttackRange = Mathf.Max(cfg.attackRange * scaleMult * mergeBonus, ballR * 2f + 0.6f);
+        // Minimalny range: proporcjonalny do rozmiaru areny
+        float ballR    = cfg.radius * scaleMult;
+        float minRange = Mathf.Max(ballR * 2f + 0.6f, ArenaHalf * 0.07f);
+        ScaledAttackRange = Mathf.Max(cfg.attackRange * scaleMult, minRange);
 
         Rb.gravityScale           = 0f;
         Rb.linearDamping          = 0f;
@@ -147,8 +149,8 @@ public class BallController : MonoBehaviour
 
         float speed = cfg.moveSpeed / scaleMult * 0.6f;
 
-        CreateGlowObject();
-        CreateWeaponSprite(cfg);
+        if (!HighLoadMode) CreateGlowObject();
+        if (!HighLoadMode) CreateWeaponSprite(cfg);
         AttachWeapon(cfg.ballClass, statMult, speed, scaleMult);
 
         float ang         = UnityEngine.Random.Range(0f, Mathf.PI * 2f);
@@ -214,7 +216,30 @@ public class BallController : MonoBehaviour
     public void SetInvincibleGlow(bool on) => invincible = on;
 
     // Granice areny — ustawiane przez ArenaGameManager
-    public static float ArenaHalf = 9f;
+    public static float ArenaHalf   = 9f;
+    /// <summary>Tryb wysokiego obciążenia — wyłącza kosztowne efekty wizualne.</summary>
+    public static bool  HighLoadMode = false;
+    /// <summary>Co ile klatek kulka wykonuje AI (staggering). Ustawiane przez ArenaGameManager.</summary>
+    public static int   AiSkip       = 1;
+
+    /// <summary>Prawdopodobieństwo spawnu VFX (0=brak, 1=każda kulka). Ustawiane przez ArenaGameManager.</summary>
+    public static float VfxChance       = 1f;
+    /// <summary>Prawdopodobieństwo spawnu pierścieni ataków (oddzielne od particli).</summary>
+    public static float VfxAttackChance = 1f;
+    /// <summary>Ilość cząsteczek przy trafieniu.</summary>
+    public static int   VfxHitCount   = 12;
+    /// <summary>Ilość cząsteczek przy śmierci.</summary>
+    public static int   VfxDeathCount = 40;
+    /// <summary>Skala cząsteczek — dopasowana do aktualnego rozmiaru kulek (1=normalny).</summary>
+    public static float VfxScale      = 1f;
+
+    /// <summary>Losuje czy ten VFX ma się pojawić.</summary>
+    public static bool IsVfxAllowed()
+    {
+        if (VfxChance <= 0f) return false;
+        if (VfxChance >= 1f) return true;
+        return UnityEngine.Random.value < VfxChance;
+    }
 
     private float _dynamicScaleMult = 1f;
     private float _baseScaleSize;   // bazowy rozmiar bez dynamic mult
@@ -225,8 +250,9 @@ public class BallController : MonoBehaviour
         _dynamicScaleMult = newMult;
         float s = _baseScaleSize * newMult;
         transform.localScale = Vector3.one * s;
-        float ballR = s * 0.5f;
-        ScaledAttackRange = Mathf.Max(Config.attackRange * s / (Config.radius * 2f), ballR * 2f + 0.6f);
+        float ballR    = s * 0.5f;
+        float minRange = Mathf.Max(ballR * 2f + 0.6f, ArenaHalf * 0.07f);
+        ScaledAttackRange = Mathf.Max(Config.attackRange * s / (Config.radius * 2f), minRange);
         if (weapon != null) weapon.ArenaScale = s / (Config.radius * 2f);
     }
 
@@ -249,6 +275,7 @@ public class BallController : MonoBehaviour
     {
         if (!IsAlive) return;
         HandlePoison(); HandleBleed(); HandleWeaken(); HandleSlowness(); HandleFlash(); HandleGlow();
+        if (tauntLeft > 0f) tauntLeft -= Time.deltaTime;  // zawsze, niezależnie od AiSkip
         HandleAI(); ClampSpeed(); RotateWeaponSprite();
         if (_psychicRepelTimer > 0f) _psychicRepelTimer -= Time.deltaTime;
         if (healthBar != null) healthBar.UpdateBar(currentHP, transform.position);
@@ -265,7 +292,9 @@ public class BallController : MonoBehaviour
 
     void HandleAI()
     {
-        if (tauntLeft > 0f) tauntLeft -= Time.deltaTime;
+        // AI staggering: przy dużej liczbie kulek nie każda kulka liczy AI co klatkę
+        if (AiSkip > 1 && (Time.frameCount + BallNumber) % AiSkip != 0) return;
+
         BallController target = tauntLeft > 0f && tauntTarget != null && tauntTarget.IsAlive
             ? tauntTarget : FindNearest();
         _weaponTarget = target;
@@ -311,23 +340,27 @@ public class BallController : MonoBehaviour
         }
 
         _nearestCache      = nearest;
-        _nearestCacheTimer = 0.2f;
+        _nearestCacheTimer = HighLoadMode ? 0.5f : 0.2f;
         return nearest;
     }
 
     void ClampSpeed()
     {
         float speed = EffectiveSpeed;
-        if (Rb.linearVelocity.magnitude < speed * 0.3f)
+        float mag   = Rb.linearVelocity.magnitude;
+        if (mag < speed * 0.3f)
             Rb.linearVelocity = Rb.linearVelocity.normalized * speed;
+        // Ogranicz max prędkość żeby kulki nie wylatywały z areny
+        else if (mag > speed * 3f)
+            Rb.linearVelocity = Rb.linearVelocity.normalized * speed * 3f;
     }
 
     public void TakeDamage(float amount, BallController source)
     {
-        if (!IsAlive || invincible) return;
+        if (!IsAlive || IsInvincible) return;
         currentHP = Mathf.Max(currentHP - amount, 0f);
         FlashColor(Color.red, 0.12f);
-        HitParticles.Spawn(transform.position, baseColor);
+        if (IsVfxAllowed()) HitParticles.Spawn(transform.position, baseColor, VfxHitCount);
         if (healthBar != null) healthBar.UpdateBar(currentHP, transform.position);
         if (GameData.Instance != null && amount > 0f)
         {
@@ -340,10 +373,10 @@ public class BallController : MonoBehaviour
 
     public void TakeHolyDamage(float amount, BallController source)
     {
-        if (!IsAlive || invincible) return;
+        if (!IsAlive || IsInvincible) return;
         currentHP = Mathf.Max(currentHP - amount, 0f);
         FlashColor(new Color(1f, 1f, 0.3f), 0.15f);
-        HitParticles.Spawn(transform.position, baseColor);
+        if (IsVfxAllowed()) HitParticles.Spawn(transform.position, baseColor, VfxHitCount);
         if (healthBar != null) healthBar.UpdateBar(currentHP, transform.position);
         if (GameData.Instance != null && amount > 0f)
         {
@@ -362,7 +395,7 @@ public class BallController : MonoBehaviour
 
     public void TakePhysicalDamage(float amount, BallController source)
     {
-        if (invincible) return;
+        if (IsInvincible) return;
         float modified = OnTakePhysicalDamage != null ? OnTakePhysicalDamage(amount) : amount;
         _totalDmgReduced += (amount - modified);
         if (shieldHP > 0f)
@@ -391,7 +424,7 @@ public class BallController : MonoBehaviour
 
     public void ApplyPoison(float dps, float duration, BallController source)
     {
-        if (invincible) return;
+        if (IsInvincible) return;
         poisonDPS    = Mathf.Max(poisonDPS, dps);
         poisonLeft   = Mathf.Max(poisonLeft, duration);
         poisonSource = source;
@@ -399,7 +432,7 @@ public class BallController : MonoBehaviour
 
     public void ApplyBleed(float dps, float duration, BallController source)
     {
-        if (invincible) return;
+        if (IsInvincible) return;
         bleedDPS    = Mathf.Max(bleedDPS, dps);
         bleedLeft   = Mathf.Max(bleedLeft, duration);
         bleedSource = source;
@@ -424,7 +457,7 @@ public class BallController : MonoBehaviour
 
     public void ApplySlowness(float speedMult, float rangeReduction, float duration, BallController taunter)
     {
-        if (invincible) return;
+        if (IsInvincible) return;
         slownessSpeedMult = Mathf.Min(slownessSpeedMult, speedMult);
         slownessLeft      = Mathf.Max(slownessLeft, duration);
         rangeReductMult   = Mathf.Min(rangeReductMult, 1f - rangeReduction);
@@ -436,7 +469,7 @@ public class BallController : MonoBehaviour
     void HandlePoison()
     {
         if (poisonLeft <= 0f) return;
-        if (invincible) { poisonLeft -= Time.deltaTime; return; }
+        if (IsInvincible) { poisonLeft -= Time.deltaTime; return; }
         poisonLeft -= Time.deltaTime;
         TakeDamage(poisonDPS * Time.deltaTime, poisonSource);
         sr.color = Color.Lerp(sr.color, new Color(0.4f, 1f, 0.2f), 0.15f);
@@ -445,7 +478,7 @@ public class BallController : MonoBehaviour
     void HandleBleed()
     {
         if (bleedLeft <= 0f) return;
-        if (invincible) { bleedLeft -= Time.deltaTime; return; }
+        if (IsInvincible) { bleedLeft -= Time.deltaTime; return; }
         bleedLeft -= Time.deltaTime;
         TakeDamage(bleedDPS * Time.deltaTime, bleedSource);
         sr.color = Color.Lerp(sr.color, new Color(1f, 0.15f, 0.1f), 0.18f);
@@ -469,7 +502,9 @@ public class BallController : MonoBehaviour
     void HandleGlow()
     {
         if (glowSR == null) return;
-        if (invincible)
+        // Pierścień rogua (i innych) widoczny dopiero od ≤500 kulek total
+        bool glowAllowed = !HighLoadMode || IsVfxAllowed();
+        if (invincible && glowAllowed)
         {
             glowPulse += Time.deltaTime * 4f;
             float a = (Mathf.Sin(glowPulse) + 1f) * 0.5f * 0.6f;
@@ -490,12 +525,12 @@ public class BallController : MonoBehaviour
             return;
         }
 
-        BallDeathParticles.Spawn(transform.position, baseColor);
+        if (IsVfxAllowed()) BallDeathParticles.Spawn(transform.position, baseColor, VfxDeathCount);
         ArenaEvents.FireBallDied(transform.position, baseColor);
         if (GameData.Instance != null) GameData.Instance.gold += goldReward;
         if (KillFeed.Instance != null && killer != null)
             KillFeed.Instance.ReportKill(killer, this);
-        OnDeath?.Invoke(killer);
+        OnDeath?.Invoke(this);  // przekazujemy siebie (martwą kulkę), nie killera
         Rb.linearVelocity = Vector2.zero;
         gameObject.SetActive(false);
         if (healthBar != null) healthBar.gameObject.SetActive(false);

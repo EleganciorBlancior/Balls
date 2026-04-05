@@ -147,6 +147,22 @@ public class AudioController : MonoBehaviour
 
     public void StopAccelerationWarning() => _sfxAccel?.Stop();
 
+    /// <summary>Odgrywa losowy dźwięk walki — używane przez symulator gdy jest dużo kulek.</summary>
+    public void PlayBattleSound()
+    {
+        // Zbierz dostępne klipy walki
+        var clips = new System.Collections.Generic.List<(AudioClip clip, float norm)>();
+        if (ballCollision  != null) clips.Add((ballCollision,  normBallCollision));
+        if (ballCollision  != null) clips.Add((ballCollision,  normBallCollision)); // częściej
+        if (meleeHit       != null) clips.Add((meleeHit,       normMeleeHit));
+        if (projectileFire != null) clips.Add((projectileFire, normProjectileFire));
+        if (projectileHit  != null) clips.Add((projectileHit,  normProjectileHit));
+        if (ballDeath      != null) clips.Add((ballDeath,      normBallDeath));
+        if (clips.Count == 0 || _sfx == null) return;
+        var (clip, norm) = clips[UnityEngine.Random.Range(0, clips.Count)];
+        _sfx.PlayOneShot(clip, sfxVolume * norm * 0.6f);
+    }
+
     // ── Wewnętrzny throttled Play ─────────────────────────────────────────────
     /// <param name="cooldown">Minimalny czas między odtworzeniami. -1 = użyj defaultCooldown.</param>
     void Play(AudioClip clip, float normMultiplier = 1f, float cooldown = -1f)

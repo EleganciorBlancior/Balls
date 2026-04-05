@@ -55,12 +55,17 @@ public class KillFeed : MonoBehaviour
     public void ReportKill(BallController killer, BallController victim)
     {
         if (_container == null) return;
-        while (_entries.Count >= maxEntries) RemoveEntry(_entries[0]);
 
         string killerLabel = LocalizationManager.GetClassName(killer.Config.ballClass) + " #" + killer.BallNumber;
         string victimLabel = LocalizationManager.GetClassName(victim.Config.ballClass)  + " #" + victim.BallNumber;
-        Color  killerColor = killer.BaseColor;
-        Color  victimColor = victim.BaseColor;
+        ReportGhostKill(killerLabel, killer.BaseColor, victimLabel, victim.BaseColor);
+    }
+
+    /// <summary>Generuje wpis kill-feeda z surowych danych (używane też przez GhostBallSystem).</summary>
+    public void ReportGhostKill(string killerLabel, Color killerColor, string victimLabel, Color victimColor)
+    {
+        if (_container == null) return;
+        while (_entries.Count >= maxEntries) RemoveEntry(_entries[0]);
 
         var entryGO = BuildEntry(killerLabel, killerColor, victimLabel, victimColor);
         var cg      = entryGO.AddComponent<CanvasGroup>();

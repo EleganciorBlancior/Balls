@@ -5,6 +5,7 @@ public class TechTurret : MonoBehaviour
 {
     private BallController owner;
     private float          damage;
+    private float          arenaScale   = 1f;
     private float          fireTimer    = 0.5f;
     private const float    FIRE_CD      = 1.4f;
     private const float    BULLET_SPEED = 9f;
@@ -20,11 +21,12 @@ public class TechTurret : MonoBehaviour
 
     private float rotSpeed;
 
-    public void Initialize(BallController ownerBall, float dmg, bool isMega = false)
+    public void Initialize(BallController ownerBall, float dmg, bool isMega = false, float scale = 1f)
     {
-        owner    = ownerBall;
-        damage   = dmg;
-        _isMega  = isMega;
+        owner      = ownerBall;
+        damage     = dmg;
+        _isMega    = isMega;
+        arenaScale = scale;
         rotSpeed = Random.Range(60f, 150f) * (Random.value > 0.5f ? 1f : -1f);
 
         if (_isMega)
@@ -57,13 +59,13 @@ public class TechTurret : MonoBehaviour
         {
             // Wielka rakieta: duży pocisk, duże obrażenia, AoE przy trafieniu
             float rocketDmg = damage * 2.5f;
-            var go = BallArenaUtils.CreateBulletGO(transform.position, new Color(1f, 0.5f, 0.1f), 0.35f);
+            var go = BallArenaUtils.CreateBulletGO(transform.position, new Color(1f, 0.5f, 0.1f), 0.35f * arenaScale);
             var proj = go.AddComponent<Projectile>();
             proj.Initialize(owner, target, dir * ROCKET_SPEED, rocketDmg, ProjectileType.Arrow, 1.5f, 3f);
             proj.OnHitBallCallback = (hitBall) =>
             {
                 // Eksplozja AoE przy trafieniu
-                var all = FindObjectsByType<BallController>(FindObjectsSortMode.None);
+                var all = ArenaGameManager.AliveBalls;
                 foreach (var b in all)
                 {
                     if (b == owner || !b.IsAlive) continue;
@@ -75,21 +77,21 @@ public class TechTurret : MonoBehaviour
                 ArenaEvents.FireAoE(hitBall.transform.position, new Color(1f, 0.4f, 0.1f), 3f);
             };
             AttackRingFX.Spawn(transform.position, new Color(1f, 0.5f, 0.1f), 0.6f, 0.25f);
-            fireTimer = MEGA_FIRE_CD;
+            fireTimer = MEGA_FIRE_CD * (BallController.AiSkip > 1 ? 1f + BallController.AiSkip * 0.5f : 1f);
         }
         else
         {
-            var go = BallArenaUtils.CreateBulletGO(transform.position, new Color(0.3f, 0.9f, 1f), 0.16f);
+            var go = BallArenaUtils.CreateBulletGO(transform.position, new Color(0.3f, 0.9f, 1f), 0.16f * arenaScale);
             go.AddComponent<Projectile>().Initialize(owner, target, dir * BULLET_SPEED,
                 damage, ProjectileType.Arrow, 0f, 2.5f);
             AttackRingFX.Spawn(transform.position, new Color(0.3f, 0.85f, 1f), 0.4f, 0.2f);
-            fireTimer = FIRE_CD;
+            fireTimer = FIRE_CD * (BallController.AiSkip > 1 ? 1f + BallController.AiSkip * 0.5f : 1f);
         }
     }
 
     BallController FindNearest(float range)
     {
-        var all = FindObjectsByType<BallController>(FindObjectsSortMode.None);
+        var all = ArenaGameManager.AliveBalls;
         BallController nearest = null; float minD = float.MaxValue;
         foreach (var b in all)
         {

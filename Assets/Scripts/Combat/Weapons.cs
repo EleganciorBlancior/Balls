@@ -77,7 +77,7 @@ public class SwordWeapon : WeaponBase
     protected override void FireUlt(BallController target)
     {
         // Obrotowy Slam: AoE wokół właściciela + krwawienie
-        var all = Object.FindObjectsByType<BallController>(FindObjectsSortMode.None);
+        var all = ArenaGameManager.AliveBalls;
         foreach (var b in all)
         {
             if (b == owner || !b.IsAlive) continue;
@@ -425,7 +425,7 @@ public class BerserkWeapon : WeaponBase
 
     BallController FindNearestOther()
     {
-        var all = Object.FindObjectsByType<BallController>(FindObjectsSortMode.None);
+        var all = ArenaGameManager.AliveBalls;
         BallController best = null; float minD = float.MaxValue;
         foreach (var b in all)
         {
@@ -468,7 +468,7 @@ public class NecroWeapon : WeaponBase
     {
         if (!HasPassive) return false;
         // Eksplozja śmierci
-        var all = Object.FindObjectsByType<BallController>(FindObjectsSortMode.None);
+        var all = ArenaGameManager.AliveBalls;
         foreach (var b in all)
         {
             if (b == owner || !b.IsAlive) continue;
@@ -489,7 +489,7 @@ public class NecroWeapon : WeaponBase
     public override void Attack(BallController target)
     {
         if (!IsReady) return;
-        var all = Object.FindObjectsByType<BallController>(FindObjectsSortMode.None);
+        var all = ArenaGameManager.AliveBalls;
         float totalDmg = 0f;
         foreach (var b in all)
         {
@@ -536,7 +536,7 @@ public class NecroWeapon : WeaponBase
         if (_minions.Count >= MAX_MINIONS + (HasPassive ? 7 : 0)) return;
         var go = new GameObject("NecroMinion");
         go.transform.position   = pos;
-        go.transform.localScale = Vector3.one * 0.38f;
+        go.transform.localScale = Vector3.one * 0.38f * ArenaScale;
         var sr = go.AddComponent<SpriteRenderer>();
         sr.sprite = BallArenaUtils.CircleSprite; sr.color = NECRO_BODY; sr.sortingOrder = 2;
         var rb = go.AddComponent<Rigidbody2D>(); rb.gravityScale = 0f;
@@ -711,7 +711,7 @@ public class TitanWeapon : WeaponBase
 
     void Quake()
     {
-        var all = Object.FindObjectsByType<BallController>(FindObjectsSortMode.None);
+        var all = ArenaGameManager.AliveBalls;
         foreach (var b in all)
         {
             if (b == owner || !b.IsAlive) continue;
@@ -763,7 +763,7 @@ public class DruidWeapon : WeaponBase
         if (!HasPassive) return false;
         // Eksplozja śmierci: AoE + zatrzymanie pobliskich
         float r = 4f;
-        var all = Object.FindObjectsByType<BallController>(FindObjectsSortMode.None);
+        var all = ArenaGameManager.AliveBalls;
         foreach (var b in all)
         {
             if (b == owner || !b.IsAlive) continue;
@@ -789,7 +789,7 @@ public class DruidWeapon : WeaponBase
         {
             var go = new GameObject("DruidMinion");
             go.transform.position   = owner.transform.position;
-            go.transform.localScale = Vector3.one * 0.38f;
+            go.transform.localScale = Vector3.one * 0.38f * ArenaScale;
             var sr = go.AddComponent<SpriteRenderer>();
             sr.sprite = BallArenaUtils.CircleSprite; sr.color = new Color(0.25f, 0.85f, 0.3f, 1f); sr.sortingOrder = 2;
             var rb = go.AddComponent<Rigidbody2D>(); rb.gravityScale = 0f;
@@ -849,15 +849,16 @@ public class TechWeapon : WeaponBase
 
     void SpawnTurret(float dmg, bool isMega)
     {
+        float s = ArenaScale;
         var go = new GameObject("TechTurret");
         go.transform.position   = owner.transform.position;
-        go.transform.localScale = Vector3.one * (isMega ? 0.85f : 0.55f);
+        go.transform.localScale = Vector3.one * (isMega ? 0.85f : 0.55f) * s;
         var sr = go.AddComponent<SpriteRenderer>();
         sr.sprite = BallArenaUtils.CircleSprite;
         sr.color  = isMega ? new Color(1f, 0.5f, 0.1f, 1f) : new Color(0.3f, 0.75f, 1f, 1f);
         sr.sortingOrder = 2;
         var turret = go.AddComponent<TechTurret>();
-        turret.Initialize(owner, dmg, isMega);
+        turret.Initialize(owner, dmg, isMega, s);
         if (!isMega) _turrets.Add(go);
     }
 }
@@ -932,7 +933,7 @@ public class GlitchWeapon : WeaponBase
         if (HasPassive)
         {
             // AoE wokół miejsca zderzenia
-            var all = Object.FindObjectsByType<BallController>(FindObjectsSortMode.None);
+            var all = ArenaGameManager.AliveBalls;
             foreach (var b in all)
             {
                 if (b == owner || b == other || !b.IsAlive) continue;
@@ -981,7 +982,7 @@ public class PsychicWeapon : WeaponBase
     {
         if (_repelTimer > 0f) return;
         _repelTimer = REPEL_CD;
-        var all = Object.FindObjectsByType<BallController>(FindObjectsSortMode.None);
+        var all = ArenaGameManager.AliveBalls;
         foreach (var b in all)
         {
             if (b == owner || !b.IsAlive) continue;
@@ -1025,7 +1026,7 @@ public class PsychicWeapon : WeaponBase
         // Zamroź pobliskich wrogów
         float r = REPEL_RADIUS * 1.2f;
         var frozen = new List<(BallController, Vector2)>();
-        var allBalls = Object.FindObjectsByType<BallController>(FindObjectsSortMode.None);
+        var allBalls = ArenaGameManager.AliveBalls;
         foreach (var b in allBalls)
         {
             if (b == owner || !b.IsAlive) continue;
@@ -1060,7 +1061,7 @@ public class PsychicWeapon : WeaponBase
 
     BallController FindSecondTarget(BallController exclude)
     {
-        var all = Object.FindObjectsByType<BallController>(FindObjectsSortMode.None);
+        var all = ArenaGameManager.AliveBalls;
         BallController best = null; float minD = float.MaxValue;
         foreach (var b in all)
         {
@@ -1099,25 +1100,20 @@ public class MariachWeapon : WeaponBase
     private static Bounds _arenaBounds;
     private static bool   _boundsReady = false;
 
+    /// <summary>Precache — wywołaj z ArenaGameManager.Start żeby nie liczyć przy pierwszym ataku.</summary>
+    public static void PrecacheArenaBounds()
+    {
+        float h = BallController.ArenaHalf - 0.5f;
+        _arenaBounds = new Bounds(Vector3.zero, new Vector3(h * 2f, h * 2f, 1f));
+        _boundsReady = true;
+    }
+
     public override void Initialize(BallController ownerBall)
     {
         base.Initialize(ownerBall);
         _baseCooldown = 1.4f;
         Cooldown      = _baseCooldown;
-        if (!_boundsReady) CacheArenaBounds();
-    }
-
-    static void CacheArenaBounds()
-    {
-        var allColliders = Object.FindObjectsByType<Collider2D>(FindObjectsSortMode.None);
-        bool found = false; Bounds b = new Bounds();
-        foreach (var c in allColliders)
-        {
-            if (!c.gameObject.name.StartsWith("Wall_")) continue;
-            if (!found) { b = c.bounds; found = true; }
-            else          b.Encapsulate(c.bounds);
-        }
-        if (found) { b.Expand(-1.0f); _arenaBounds = b; _boundsReady = true; }
+        if (!_boundsReady) PrecacheArenaBounds();
     }
 
     public override void Attack(BallController target)
@@ -1151,7 +1147,7 @@ public class MariachWeapon : WeaponBase
 
     BallController FindAnyEnemy()
     {
-        var all = Object.FindObjectsByType<BallController>(FindObjectsSortMode.None);
+        var all = ArenaGameManager.AliveBalls;
         foreach (var b in all) if (b != owner && b.IsAlive) return b;
         return null;
     }
@@ -1292,7 +1288,7 @@ public class NerdWeapon : WeaponBase
 
     BallController FindNearest()
     {
-        var all = Object.FindObjectsByType<BallController>(FindObjectsSortMode.None);
+        var all = ArenaGameManager.AliveBalls;
         BallController best = null; float minD = float.MaxValue;
         foreach (var b in all)
         {
@@ -1344,7 +1340,7 @@ public class FirePuddle : MonoBehaviour
 
         if (tickTimer < TICK) return;
         tickTimer = 0f;
-        var all = Object.FindObjectsByType<BallController>(FindObjectsSortMode.None);
+        var all = ArenaGameManager.AliveBalls;
         foreach (var b in all)
         {
             if (b == owner || !b.IsAlive) continue;

@@ -96,7 +96,7 @@ public class MergeUI : MonoBehaviour
     private bool        _selCanMerge;
     private bool        _selNeedsTier;
 
-    // Hold-to-merge
+    // Hold-to-merge / hold-to-sell
     const float HOLD_INITIAL_DELAY  = 0.5f;
     const float HOLD_INTERVAL_START = 0.15f;
     const float HOLD_INTERVAL_MIN   = 0.002f;
@@ -106,6 +106,12 @@ public class MergeUI : MonoBehaviour
     private float _holdTimer;
     private float _holdHeld;
     private bool  _holdFired;
+    private bool  _holdWasUsed; // true = hold był aktywny, zablokuj onClick przy puszczeniu
+
+    private bool  _sellHeld;
+    private float _sellHoldTimer;
+    private float _sellHoldHeld;
+    private bool  _sellHoldFired;
 
     // ── Unity lifecycle ───────────────────────────────────────────────────
     private void Start()
@@ -168,17 +174,33 @@ public class MergeUI : MonoBehaviour
 
     void SetupHoldToMerge()
     {
-        if (actionButton == null) return;
-        var trigger = actionButton.gameObject.GetComponent<EventTrigger>()
-                   ?? actionButton.gameObject.AddComponent<EventTrigger>();
+        if (actionButton != null)
+        {
+            var trigger = actionButton.gameObject.GetComponent<EventTrigger>()
+                       ?? actionButton.gameObject.AddComponent<EventTrigger>();
 
-        var down = new EventTrigger.Entry { eventID = EventTriggerType.PointerDown };
-        down.callback.AddListener(_ => { _actionHeld = true; _holdTimer = 0f; _holdHeld = 0f; _holdFired = false; });
-        trigger.triggers.Add(down);
+            var down = new EventTrigger.Entry { eventID = EventTriggerType.PointerDown };
+            down.callback.AddListener(_ => { _actionHeld = true; _holdTimer = 0f; _holdHeld = 0f; _holdFired = false; _holdWasUsed = false; });
+            trigger.triggers.Add(down);
 
-        var up = new EventTrigger.Entry { eventID = EventTriggerType.PointerUp };
-        up.callback.AddListener(_ => { _actionHeld = false; _holdTimer = 0f; _holdHeld = 0f; _holdFired = false; });
-        trigger.triggers.Add(up);
+            var up = new EventTrigger.Entry { eventID = EventTriggerType.PointerUp };
+            up.callback.AddListener(_ => { _holdWasUsed = _holdFired; _actionHeld = false; _holdTimer = 0f; _holdHeld = 0f; _holdFired = false; });
+            trigger.triggers.Add(up);
+        }
+
+        if (sellButton != null)
+        {
+            var trigger = sellButton.gameObject.GetComponent<EventTrigger>()
+                       ?? sellButton.gameObject.AddComponent<EventTrigger>();
+
+            var down = new EventTrigger.Entry { eventID = EventTriggerType.PointerDown };
+            down.callback.AddListener(_ => { _sellHeld = true; _sellHoldTimer = 0f; _sellHoldHeld = 0f; _sellHoldFired = false; });
+            trigger.triggers.Add(down);
+
+            var up = new EventTrigger.Entry { eventID = EventTriggerType.PointerUp };
+            up.callback.AddListener(_ => { _sellHeld = false; _sellHoldTimer = 0f; _sellHoldHeld = 0f; _sellHoldFired = false; });
+            trigger.triggers.Add(up);
+        }
     }
 
     private void Update()
@@ -191,12 +213,14 @@ public class MergeUI : MonoBehaviour
                 Mathf.Sin(_bobTimer * 1.5f) * 16f - 55f);
         }
 
-        if (_actionHeld && UnityEngine.InputSystem.Mouse.current != null
+        if (UnityEngine.InputSystem.Mouse.current != null
             && UnityEngine.InputSystem.Mouse.current.leftButton.wasReleasedThisFrame)
         {
             _actionHeld = false; _holdTimer = 0f; _holdHeld = 0f; _holdFired = false;
+            _sellHeld   = false; _sellHoldTimer = 0f; _sellHoldHeld = 0f; _sellHoldFired = false;
         }
 
+        // Hold-to-merge
         if (_actionHeld && actionButton != null && actionButton.interactable && _selType != SelType.None)
         {
             _holdTimer += Time.deltaTime;
@@ -215,6 +239,29 @@ public class MergeUI : MonoBehaviour
                 {
                     _holdTimer = 0f;
                     OnActionClicked();
+                }
+            }
+        }
+
+        // Hold-to-sell
+        if (_sellHeld && sellButton != null && sellButton.interactable && _selType != SelType.None)
+        {
+            _sellHoldTimer += Time.deltaTime;
+            _sellHoldHeld  += Time.deltaTime;
+
+            if (!_sellHoldFired && _sellHoldTimer >= HOLD_INITIAL_DELAY)
+            {
+                _sellHoldFired = true; _sellHoldTimer = 0f;
+                TrySellMerged();
+            }
+            else if (_sellHoldFired)
+            {
+                float rampProgress = Mathf.Clamp01((_sellHoldHeld - HOLD_INITIAL_DELAY) / HOLD_RAMP_TIME);
+                float interval = Mathf.Lerp(HOLD_INTERVAL_START, HOLD_INTERVAL_MIN, rampProgress);
+                if (_sellHoldTimer >= interval)
+                {
+                    _sellHoldTimer = 0f;
+                    TrySellMerged();
                 }
             }
         }
@@ -610,6 +657,9 @@ public class MergeUI : MonoBehaviour
     // ── Akcja przycisku ───────────────────────────────────────────────────
     public void OnActionClicked()
     {
+        // Jeśli hold był aktywny — zignoruj onClick przy puszczeniu (żeby nie przenosić do sklepu)
+        if (_holdWasUsed) { _holdWasUsed = false; return; }
+
         switch (_selType)
         {
             case SelType.Basic:     TryMergeBasic();   break;
@@ -629,9 +679,16 @@ public class MergeUI : MonoBehaviour
             return;
         }
 
-        // Nie ma wystarczająco kulek – idź do sklepu z tą klasą
+        // Nie ma wystarczająco kulek
         if (!GameData.Instance.CanMergeBasic(_selCfg.ballClass))
         {
+            // Jeśli trzyma przycisk (hold-to-merge) — po prostu przestań, nie przenoś do sklepu
+            if (_actionHeld)
+            {
+                _actionHeld = false;
+                return;
+            }
+            // Kliknięcie — idź do sklepu z tą klasą
             GameData.Instance.shopPendingBall      = true;
             GameData.Instance.shopPendingBallClass = _selCfg.ballClass;
             GameData.Instance.shopBallsOpen        = true;
@@ -658,9 +715,16 @@ public class MergeUI : MonoBehaviour
             return;
         }
 
-        // Nie ma wystarczająco scalonych – idź do sklepu z tą klasą
+        // Nie ma wystarczająco scalonych
         if (!GameData.Instance.CanMergeUp(_selCfg.ballClass, _selFromLevel))
         {
+            // Jeśli trzyma przycisk (hold-to-merge) — po prostu przestań, nie przenoś do sklepu
+            if (_actionHeld)
+            {
+                _actionHeld = false;
+                return;
+            }
+            // Kliknięcie — idź do sklepu z tą klasą
             GameData.Instance.shopPendingBall      = true;
             GameData.Instance.shopPendingBallClass = _selCfg.ballClass;
             GameData.Instance.shopBallsOpen        = true;
