@@ -3,7 +3,8 @@
     "allow": [
       "Bash(ls -lh /home/pawelb/ProjektyUnity/balls/Assets/Scripts/*.cs)",
       "Read(//home/pawelb/ProjektyUnity/balls/**)",
-      "Bash(xargs -I {} basename {})"
+      "Bash(xargs -I {} basename {})",
+      "Bash(grep -r \"weaponOffset\\\\|weaponPos\\\\|weaponLocal\\\\|spriteOffset\" /home/pawelb/Balls/Assets/Scripts --include=*.cs)"
     ]
   }
 }

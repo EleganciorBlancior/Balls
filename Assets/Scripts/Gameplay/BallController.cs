@@ -286,8 +286,10 @@ public class BallController : MonoBehaviour
         if (_weaponSpriteGO == null) return;
         if (_weaponTarget == null || !_weaponTarget.IsAlive) return;
         Vector2 dir   = (Vector2)(_weaponTarget.transform.position - transform.position);
-        float   angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
+        float   angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg - 45f;
         _weaponSpriteGO.transform.rotation = Quaternion.Euler(0f, 0f, angle);
+        float   radius = transform.localScale.x * 0.5f;
+        _weaponSpriteGO.transform.localPosition = (Vector3)(dir.normalized * radius * 0.01f);
     }
 
     void HandleAI()

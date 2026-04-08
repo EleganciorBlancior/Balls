@@ -22,7 +22,8 @@ MonoBehaviour:
   maxHP: 120
   radius: 0.55
   moveSpeed: 2
-  attackRange: 1.4
+  attackRange: 0
   attackCooldown: 2.8
   collisionDamage: 12
   ballSprite: {fileID: 0}
+  weaponSprite: {fileID: 0}
