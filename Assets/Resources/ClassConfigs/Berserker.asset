@@ -17,7 +17,8 @@ MonoBehaviour:
   color: {r: 0.95, g: 0.2, b: 0.1, a: 1}
   color2: {r: 1, g: 1, b: 1, a: 1}
   color3: {r: 1, g: 1, b: 1, a: 1}
-  useMultiColor: 0
+  pattern: 0
+  stripeCount: 5
   maxHP: 130
   radius: 0.45
   moveSpeed: 2.6
@@ -25,3 +26,6 @@ MonoBehaviour:
   attackCooldown: 1.2
   collisionDamage: 12
   ballSprite: {fileID: 0}
+  weaponSprite: {fileID: 0}
+  costumeSprite: {fileID: 0}
+  isMelee: 1

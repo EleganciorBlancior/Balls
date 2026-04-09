@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Security.Cryptography;
+using System.Text;
 using UnityEngine;
 
 [System.Serializable]
@@ -37,7 +39,7 @@ public class GameData : MonoBehaviour
 {
     public static GameData Instance { get; private set; }
 
-    [HideInInspector] public int  gold           = 100;
+    [HideInInspector] public ObfuscatedInt gold   = 100;
     [HideInInspector] public int  arenaTierIndex = 0;
 
     [HideInInspector] public List<BallClass>         purchasedBalls      = new List<BallClass>();
@@ -343,6 +345,12 @@ public class GameData : MonoBehaviour
         try
         {
             var sd = JsonUtility.FromJson<SaveData>(File.ReadAllText(SavePath));
+            if (!sd.VerifyChecksum())
+            {
+                Debug.LogWarning("[GameData] Save file tampered — resetting.");
+                ResetSave();
+                return false;
+            }
             sd.ApplyTo(this);
             return true;
         }
@@ -417,6 +425,8 @@ public class SaveData
     public List<BallCustomization> ballCustomizations;
     public List<GameData.ClassCrowns> classCrowns;
 
+    public string checksum;
+
     public SaveData() { }
 
     public SaveData(GameData d)
@@ -435,7 +445,10 @@ public class SaveData
         consumedBaseBalls  = new List<BallClass>(d.consumedBaseBalls);
         ballCustomizations = new List<BallCustomization>(d.ballCustomizations);
         classCrowns        = new List<GameData.ClassCrowns>(d.classCrowns);
+        checksum           = ComputeChecksum();
     }
+
+    public bool VerifyChecksum() => checksum == ComputeChecksum();
 
     public void ApplyTo(GameData d)
     {
@@ -453,5 +466,33 @@ public class SaveData
         d.consumedBaseBalls  = consumedBaseBalls  ?? new List<BallClass>();
         d.ballCustomizations = ballCustomizations ?? new List<BallCustomization>();
         d.classCrowns        = classCrowns        ?? new List<GameData.ClassCrowns>();
+    }
+
+    private static readonly byte[] _hmacKey = Encoding.UTF8.GetBytes("b4LLs_s3cR3t_K3y!@#2026");
+
+    private string ComputeChecksum()
+    {
+        var sb = new StringBuilder(256);
+        sb.Append(gold).Append('|');
+        sb.Append(arenaTierIndex).Append('|');
+        sb.Append(paintShopUnlocked).Append('|');
+        sb.Append(pullUpgradeLevel).Append('|');
+
+        if (purchasedBalls != null)
+            foreach (var b in purchasedBalls) sb.Append((int)b).Append(',');
+        sb.Append('|');
+
+        if (mergedBalls != null)
+            foreach (var m in mergedBalls) sb.Append((int)m.ballClass).Append(':').Append(m.mergeLevel).Append(',');
+        sb.Append('|');
+
+        if (consumedBaseBalls != null)
+            foreach (var b in consumedBaseBalls) sb.Append((int)b).Append(',');
+
+        using (var hmac = new HMACSHA256(_hmacKey))
+        {
+            byte[] hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(sb.ToString()));
+            return System.Convert.ToBase64String(hash);
+        }
     }
 }

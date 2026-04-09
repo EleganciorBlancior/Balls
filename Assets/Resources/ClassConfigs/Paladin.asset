@@ -27,3 +27,5 @@ MonoBehaviour:
   collisionDamage: 12
   ballSprite: {fileID: 0}
   weaponSprite: {fileID: 0}
+  costumeSprite: {fileID: 0}
+  isMelee: 1

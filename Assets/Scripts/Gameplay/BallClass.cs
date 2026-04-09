@@ -53,4 +53,6 @@ public class ClassConfig : ScriptableObject
     public float      collisionDamage = 10f;
     public Sprite     ballSprite;
     public Sprite     weaponSprite;
+    public Sprite     costumeSprite;
+    public bool       isMelee;
 }

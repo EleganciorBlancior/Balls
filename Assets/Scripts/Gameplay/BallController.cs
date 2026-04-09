@@ -45,6 +45,8 @@ public class BallController : MonoBehaviour
     private SpriteRenderer glowSR;
     private float          glowPulse;
     private GameObject     _weaponSpriteGO;
+    private GameObject     _costumeSpriteGO;
+    private OrbitingWeapon _orbitingWeapon;
     private BallController _weaponTarget;
     private BallController _nearestCache;
     private float          _nearestCacheTimer;
@@ -150,7 +152,20 @@ public class BallController : MonoBehaviour
         float speed = cfg.moveSpeed / scaleMult * 0.6f;
 
         if (!HighLoadMode) CreateGlowObject();
-        if (!HighLoadMode) CreateWeaponSprite(cfg);
+
+        bool hasMastery = GameData.Instance?.HasMastery(cfg.ballClass) ?? false;
+
+        if (cfg.isMelee)
+        {
+            if (!HighLoadMode) CreateCostumeSprite(cfg);
+            if (hasMastery && !HighLoadMode) CreateOrbitingWeapon(cfg, scaleMult, statMult);
+        }
+        else
+        {
+            if (!HighLoadMode) CreateWeaponSprite(cfg);
+            if (hasMastery && !HighLoadMode) CreateCostumeSprite(cfg);
+        }
+
         AttachWeapon(cfg.ballClass, statMult, speed, scaleMult);
 
         float ang         = UnityEngine.Random.Range(0f, Mathf.PI * 2f);
@@ -182,6 +197,26 @@ public class BallController : MonoBehaviour
         var wsr         = _weaponSpriteGO.AddComponent<SpriteRenderer>();
         wsr.sprite      = cfg.weaponSprite;
         wsr.sortingOrder = 2;
+    }
+
+    void CreateCostumeSprite(ClassConfig cfg)
+    {
+        if (cfg.costumeSprite == null) return;
+        _costumeSpriteGO = new GameObject("CostumeSprite");
+        _costumeSpriteGO.transform.SetParent(transform);
+        _costumeSpriteGO.transform.localPosition = Vector3.up * 0.3f;
+        _costumeSpriteGO.transform.localRotation = Quaternion.identity;
+        _costumeSpriteGO.transform.localScale    = Vector3.one;
+        var csr         = _costumeSpriteGO.AddComponent<SpriteRenderer>();
+        csr.sprite      = cfg.costumeSprite;
+        csr.sortingOrder = 3;
+    }
+
+    void CreateOrbitingWeapon(ClassConfig cfg, float scaleMult, float statMult)
+    {
+        if (cfg.weaponSprite == null) return;
+        _orbitingWeapon = gameObject.AddComponent<OrbitingWeapon>();
+        _orbitingWeapon.Setup(this, cfg.weaponSprite, scaleMult, statMult);
     }
 
     void AttachWeapon(BallClass cls, float statMult, float speed, float arenaScale)
